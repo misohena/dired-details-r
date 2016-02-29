@@ -1,0 +1,67 @@
+* dired-details-r.el - Show Dired Details Right
+** Screenshots
+
+Show all:
+
+
+[[file:./dired-details-r-1.png]]
+
+Hide permissions, link count, user, group (Show size and timestamp only):
+
+[[file:./dired-details-r-2.png]]
+
+Hide all:
+
+[[file:./dired-details-r-3.png]]
+
+** Requirements
+- Emacs 24.4
+
+** Usage
+[[file:./dired-details-r.el]]
+
+#+BEGIN_SRC elisp
+(require 'dired-details-r)
+#+END_SRC
+
+** Key
+
+- "(" : Rotate details combination
+
+** Customize
+
+Details combination list:
+
+#+BEGIN_SRC elisp
+(setq dired-details-r-combinations
+  '((all        . (size time perms links user group))
+    (size-time  . (size time))
+    (no-details . ())))
+#+END_SRC
+
+Filename width:
+
+#+BEGIN_SRC elisp
+(setq dired-details-r-max-filename-width 40)
+#+END_SRC
+
+Faces:
+- dired-details-r-today
+- dired-details-r-dot-file
+
+#+BEGIN_SRC elisp
+(defun dired-details-r-set-face-part (str part-name)
+  (cond
+   ;; highlight today
+   ((and (eq part-name 'time)
+         (string-match (format-time-string "%b %e" (current-time)) str))
+    (propertize str 'face 'dired-details-r-today))
+   (t str)))
+
+(defun dired-details-r-set-face-details (str part-strings)
+  ;; gray dot file
+  (cond
+   ((string-match "^\\." (car (last part-strings)))
+    (propertize str 'face 'dired-details-r-dot-file))
+   (t str)))
+#+END_SRC
