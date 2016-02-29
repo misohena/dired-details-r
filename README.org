@@ -65,3 +65,6 @@ Faces:
     (propertize str 'face 'dired-details-r-dot-file))
    (t str)))
 #+END_SRC
+
+** Related Projects
+- [[https://github.com/misohena/dired-details-s/][dired-details-s.el]] :: Hide dired details separately
