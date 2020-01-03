@@ -53,6 +53,7 @@
 (defun dired-details-r-part-align-right (part) (nth 3 part))
 
 (defcustom dired-details-r-max-filename-width 40 "" :group 'dired :type 'file)
+(defcustom dired-details-r-min-filename-width 0 "" :group 'dired :type 'file)
 
 (defcustom dired-details-r-combinations
   '((all        . (size time perms links user group))
@@ -142,8 +143,10 @@
    ;; spaces after filename
    (make-string
     (let* ((filename-curr-width (string-width (car (last part-strings))))
-           (filename-max-width  (min (car (last max-widths))
-                                     dired-details-r-max-filename-width))
+           (filename-max-width  (max
+                                 dired-details-r-min-filename-width
+                                 (min (car (last max-widths))
+                                      dired-details-r-max-filename-width)))
            (filename-spaces (max
                              0
                              (- filename-max-width filename-curr-width -1))))
