@@ -262,7 +262,7 @@
   (advice-remove 'dired-insert-set-properties 'dired-details-r-set-text-properties-after)
   (define-key dired-mode-map "(" 'dired-hide-details-mode)
   (remove-hook 'dired-mode-hook 'dired-details-r-activate)
-  (advice-remove 'dired-revert :before 'dired-details-r-delete-overlays))
+  (advice-remove 'dired-revert 'dired-details-r-delete-overlays))
 
 (dired-details-r-setup)
 
