@@ -30,19 +30,37 @@
 ;; Customizable variables
 ;;
 
-(defcustom dired-details-r-max-filename-width 40 "" :group 'dired :type 'integer)
-(defcustom dired-details-r-min-filename-width 0 "" :group 'dired :type 'integer)
+(defgroup dired-details-r nil
+  "Mode to display file information to the right of filename."
+  :group 'dired)
+
+(defcustom dired-details-r-max-filename-width 40 "" :group 'dired-details-r :type 'integer)
+(defcustom dired-details-r-min-filename-width 0 "" :group 'dired-details-r :type 'integer)
 
 (defcustom dired-details-r-combinations
   '((all        . (size time perms links user group))
     (size-time  . (size time))
     (no-details . ()))
   "Details combination list."
-  :group 'dired
+  :group 'dired-details-r
   :type '(repeat sexp))
 
-(defface dired-details-r-today '((t (:foreground "GreenYellow"))) nil)
-(defface dired-details-r-dot-file '((t (:foreground "Gray50"))) nil)
+
+
+(defgroup dired-details-r-faces nil
+  "Faces used by dired-details-r."
+  :group 'dired-details-r
+  :group 'faces)
+
+(defface dired-details-r-today
+  '((t (:foreground "GreenYellow")))
+  ""
+  :group 'dired-details-r-faces)
+
+(defface dired-details-r-dot-file
+  '((t (:foreground "Gray50")))
+  ""
+  :group 'dired-details-r-faces)
 
 
 
