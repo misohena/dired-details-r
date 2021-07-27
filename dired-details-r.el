@@ -43,9 +43,10 @@
 (defcustom dired-details-r-min-filename-width 40 "" :group 'dired-details-r :type 'integer)
 
 (defcustom dired-details-r-combinations
-  '((all        . (size time perms links user group))
-    (size-time  . (size time))
-    (no-details . ()))
+  '((size-time  . (size time))
+    (no-details . ())
+    (disabled   . disabled)
+    (all        . (size time perms links user group)))
   "Details combination list."
   :group 'dired-details-r
   :type '(repeat sexp))
@@ -251,38 +252,41 @@
 
 (defun dired-details-r-set-appearance-changes (beg end)
   "Set text properties and overlays on file information lines."
-  (let ((max-widths dired-details-r-max-widths))
+  (when (and (not (eq dired-details-r-visible-parts 'disabled))
+             (listp dired-details-r-visible-parts))
 
-    ;; Calculate column width
-    (dired-details-r-foreach-filenames
-     beg end
-     (lambda ()
-       (setq max-widths
-             (dired-details-r-max-part-widths
-              max-widths
-              (dired-details-r-match-part-strings)))))
+    (let ((max-widths dired-details-r-max-widths))
 
-    (setq dired-details-r-max-widths max-widths)
+      ;; Calculate column width
+      (dired-details-r-foreach-filenames
+       beg end
+       (lambda ()
+         (setq max-widths
+               (dired-details-r-max-part-widths
+                max-widths
+                (dired-details-r-match-part-strings)))))
 
-    ;; Set text properties
-    (dired-details-r-foreach-filenames
-     beg end
-     (lambda ()
-       ;; put details overlay
-       (let* ((eol-beg (line-end-position))
-              (eol-end (1+ eol-beg))
-              (ovl (dired-details-r-add-overlay eol-beg eol-end))
-              (part-strings (dired-details-r-match-part-strings))
-              (details-str (dired-details-r-set-face-details
-                            (dired-details-r-make-details-string
-                             max-widths part-strings)
-                            part-strings)))
-         (overlay-put ovl 'display (concat details-str "\n")))
+      (setq dired-details-r-max-widths max-widths)
 
-       ;; erase details before filename
-       (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
-             (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
-         (put-text-property details-beg details-end 'invisible 'dired-details-r-detail))))))
+      ;; Set text properties
+      (dired-details-r-foreach-filenames
+       beg end
+       (lambda ()
+         ;; put details overlay
+         (let* ((eol-beg (line-end-position))
+                (eol-end (1+ eol-beg))
+                (ovl (dired-details-r-add-overlay eol-beg eol-end))
+                (part-strings (dired-details-r-match-part-strings))
+                (details-str (dired-details-r-set-face-details
+                              (dired-details-r-make-details-string
+                               max-widths part-strings)
+                              part-strings)))
+           (overlay-put ovl 'display (concat details-str "\n")))
+
+         ;; erase details before filename
+         (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
+               (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
+           (put-text-property details-beg details-end 'invisible 'dired-details-r-detail)))))))
 
 (defun dired-details-r-remove-all-appearance-changes ()
   "Remove all invisible text properties and overlays for dired-details-r."
