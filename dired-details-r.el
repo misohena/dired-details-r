@@ -30,8 +30,8 @@
 ;; Customizable variables
 ;;
 
-(defcustom dired-details-r-max-filename-width 40 "" :group 'dired :type 'file)
-(defcustom dired-details-r-min-filename-width 0 "" :group 'dired :type 'file)
+(defcustom dired-details-r-max-filename-width 40 "" :group 'dired :type 'integer)
+(defcustom dired-details-r-min-filename-width 0 "" :group 'dired :type 'integer)
 
 (defcustom dired-details-r-combinations
   '((all        . (size time perms links user group))
@@ -39,7 +39,7 @@
     (no-details . ()))
   "Details combination list."
   :group 'dired
-  :type 'file)
+  :type '(repeat sexp))
 
 (defface dired-details-r-today '((t (:foreground "GreenYellow"))) nil)
 (defface dired-details-r-dot-file '((t (:foreground "Gray50"))) nil)
