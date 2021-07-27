@@ -35,15 +35,17 @@ Details combination list:
 
 #+BEGIN_SRC elisp
 (setq dired-details-r-combinations
-  '((all        . (size time perms links user group))
-    (size-time  . (size time))
-    (no-details . ())))
+  '((size-time  . (size time))
+    (no-details . ())
+    (disabled   . disabled)
+    (all        . (size time perms links user group))))
 #+END_SRC
 
 Filename width:
 
 #+BEGIN_SRC elisp
-(setq dired-details-r-max-filename-width 40)
+(setq dired-details-r-min-filename-width 40)
+(setq dired-details-r-max-filename-width 50)
 #+END_SRC
 
 Faces:
