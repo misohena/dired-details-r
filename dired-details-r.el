@@ -39,8 +39,8 @@
   "Mode to display file information to the right of filename."
   :group 'dired)
 
-(defcustom dired-details-r-max-filename-width 40 "" :group 'dired-details-r :type 'integer)
-(defcustom dired-details-r-min-filename-width 0 "" :group 'dired-details-r :type 'integer)
+(defcustom dired-details-r-max-filename-width 52 "" :group 'dired-details-r :type 'integer)
+(defcustom dired-details-r-min-filename-width 40 "" :group 'dired-details-r :type 'integer)
 
 (defcustom dired-details-r-combinations
   '((all        . (size time perms links user group))
