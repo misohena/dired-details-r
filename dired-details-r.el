@@ -167,36 +167,38 @@
     dired-details-r-visible-parts " ")))
 
 (defun dired-details-r-set-text-properties (beg end)
+  "This function is called after `dired-insert-set-properties' function."
   (let ((max-widths nil))
 
     ;; Calculate column width
     (dired-details-r-foreach-filenames
      beg end
-     #'(lambda ()
-         (setq max-widths
-               (dired-details-r-max-part-widths
-                max-widths
-                (dired-details-r-match-part-strings)))))
+     (lambda ()
+       (setq max-widths
+             (dired-details-r-max-part-widths
+              max-widths
+              (dired-details-r-match-part-strings)))))
 
     ;; Set text properties
     (dired-details-r-foreach-filenames
      beg end
-     #'(lambda ()
-         ;; put details overlay
-         (let* ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
-                (details-end (1- (point))) ;; keep whitespace after details. if not, wdired will not work properly
-                (filename-beg (point))
-                (filename-end (point-at-eol))
-                (part-strings (dired-details-r-match-part-strings))
+     (lambda ()
+       ;; put details overlay
+       (let* ((eol-beg (line-end-position))
+              (eol-end (1+ eol-beg))
+              (ovl (dired-details-r-add-overlay eol-beg eol-end))
+              (part-strings (dired-details-r-match-part-strings))
+              (details-str (dired-details-r-set-face-details
+                            (dired-details-r-make-details-string
+                             max-widths part-strings)
+                            part-strings)))
+         (overlay-put ovl 'display (concat details-str "\n")))
 
-                (filename-ovl (dired-details-r-add-overlay filename-beg filename-end))
-                (details-str (dired-details-r-set-face-details (dired-details-r-make-details-string max-widths part-strings) part-strings)))
-           (overlay-put filename-ovl 'after-string details-str)
-           (overlay-put filename-ovl 'intangible t)
-
-           ;; erase details before filename
-           (put-text-property details-beg details-end  'invisible t)
-         )))))
+       ;; erase details before filename
+       (put-text-property
+        (+ (line-beginning-position) 1) ;; include second whitespace
+        (1- (point)) ;; keep whitespace after details. if not, wdired will not work properly
+        'invisible t)))))
 
 
 ;;
