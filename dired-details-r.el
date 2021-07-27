@@ -1,9 +1,9 @@
 ;;; dired-details-r.el ---                        -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2016  AKIYAMA Kouhei
+;; Copyright (C) 2016-2021 AKIYAMA Kouhei
 
 ;; Author: AKIYAMA Kouhei <misohena@gmail.com>
-;; Keywords: 
+;; Keywords: Dired
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -21,6 +21,11 @@
 ;;; Commentary:
 
 ;; Show details right of filename in Dired.
+
+;;; Usage:
+
+;; (require 'dired-details-r)
+;; (dired-details-r-setup)
 
 ;;; Code:
 
@@ -44,6 +49,9 @@
   "Details combination list."
   :group 'dired-details-r
   :type '(repeat sexp))
+
+(defcustom dired-details-r-truncate-lines t
+  "" :group 'dired-details-r :type 'boolean)
 
 
 
@@ -97,12 +105,60 @@
 ;; Variables
 ;;
 
-(defvar dired-details-r-combination-name
-  (caar dired-details-r-combinations) "Current details combination.")
+(defvar-local dired-details-r-combination-name nil
+  "Current details combination.")
 
-(defvar dired-details-r-visible-parts
-  (cdr (assq dired-details-r-combination-name dired-details-r-combinations))
+(defvar-local dired-details-r-visible-parts nil
   "Current visible parts list.")
+
+
+
+;;
+;; Minor Mode
+;;
+
+;;;###autoload
+(define-minor-mode dired-details-r-mode
+  "Display detailed information on the right side of the buffer."
+  :group 'dired
+  :keymap (let ((keymap (make-sparse-keymap)))
+            (define-key keymap (kbd "(") 'dired-details-r-toggle-combination)
+            keymap)
+  (unless (derived-mode-p 'dired-mode)
+    (error "Not a Dired buffer"))
+
+  (dired-details-r-update-invisibility-spec)
+
+  (cond
+   ;; turn on
+   (dired-details-r-mode
+    ;; local variables
+    (setq-local dired-details-r-combination-name
+                (caar dired-details-r-combinations))
+    (setq-local dired-details-r-visible-parts
+                (cdr (assq dired-details-r-combination-name
+                           dired-details-r-combinations)))
+
+    ;; hook
+    (dired-details-r-enable-global-hooks)
+    (add-hook 'wdired-mode-hook 'dired-details-r-update-invisibility-spec nil t)
+
+    ;; change appearance
+    (let ((inhibit-read-only t))
+      (dired-details-r-set-appearance-changes (point-min) (point-max)))
+
+    ;; truncate lines
+    (when dired-details-r-truncate-lines
+      (setq truncate-lines t)
+      (force-mode-line-update)))
+
+   ;; turn off
+   (t
+    ;; unhook
+    (remove-hook 'wdired-mode-hook 'dired-details-r-update-invisibility-spec t)
+
+    ;; change appearance
+    (dired-details-r-remove-all-appearance-changes))))
 
 
 
@@ -137,7 +193,7 @@
     (while (< (point) end)
       (ignore-errors
         (when (dired-move-to-filename)
-          (if (looking-back dired-details-r-regexp)
+          (if (looking-back dired-details-r-regexp (line-beginning-position))
               (funcall fun-at-filename))))
       (forward-line 1))))
 
@@ -190,8 +246,8 @@
           (if align-right (concat spaces value) (concat value spaces))))
     dired-details-r-visible-parts " ")))
 
-(defun dired-details-r-set-text-properties (beg end)
-  "This function is called after `dired-insert-set-properties' function."
+(defun dired-details-r-set-appearance-changes (beg end)
+  "Set text properties and overlays on file information lines."
   (let ((max-widths nil))
 
     ;; Calculate column width
@@ -219,10 +275,21 @@
          (overlay-put ovl 'display (concat details-str "\n")))
 
        ;; erase details before filename
-       (put-text-property
-        (+ (line-beginning-position) 1) ;; include second whitespace
-        (1- (point)) ;; keep whitespace after details. if not, wdired will not work properly
-        'invisible t)))))
+       (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
+             (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
+         (put-text-property details-beg details-end 'invisible 'dired-details-r-detail))))))
+
+(defun dired-details-r-remove-all-appearance-changes ()
+  "Remove all invisible text properties and overlays for dired-details-r."
+  (let ((inhibit-read-only t))
+    (remove-text-properties (point-min) (point-max) '(invisible 'dired-details-r-detail)))
+  (dired-details-r-remove-all-overlays))
+
+(defun dired-details-r-update-invisibility-spec ()
+  (if dired-details-r-mode
+      (add-to-invisibility-spec 'dired-details-r-detail)
+    (remove-from-invisibility-spec 'dired-details-r-detail)))
+
 
 
 ;;
@@ -235,7 +302,7 @@
     (overlay-put ovl 'evaporate t)
     ovl))
 
-(defun dired-details-r-delete-overlays (&optional _arg _noconfirm)
+(defun dired-details-r-remove-all-overlays ()
   (remove-overlays (point-min) (point-max) 'dired-details-r t))
 
 
@@ -257,32 +324,75 @@
   ;; Refresh buffer
   (revert-buffer))
 
+(defun dired-details-r-mode-or-toggle-combination ()
+  (interactive)
+  (if dired-details-r-mode
+      (dired-details-r-toggle-combination)
+    (dired-details-r-mode)))
+
+
+
+;;
+;; Global Hooks
+;;
+
+(defvar dired-details-r-enabled-global-hooks nil)
+
+(defun dired-details-r-enable-global-hooks ()
+  (when (not dired-details-r-enabled-global-hooks)
+    (advice-add 'dired-insert-set-properties
+                :after
+                'dired-details-r--dired-insert-set-properties-hook)
+    (advice-add 'dired-revert
+                :before
+                'dired-details-r--dired-revert-hook)
+    (setq dired-details-r-enabled-global-hooks t)))
+
+(defun dired-details-r-disable-global-hooks ()
+  (when dired-details-r-enabled-global-hooks
+    (advice-remove 'dired-insert-set-properties
+                   'dired-details-r--dired-insert-set-properties-hook)
+    (advice-remove 'dired-revert
+                   'dired-details-r--dired-revert-hook)
+    (setq dired-details-r-enabled-global-hooks nil)))
+
+
+(defun dired-details-r--dired-insert-set-properties-hook (beg end)
+  (when dired-details-r-mode
+    ;; Insert text properties and overlays from beg to end
+    (dired-details-r-set-appearance-changes beg end)))
+
+(defun dired-details-r--dired-revert-hook (&optional _arg _noconfirm)
+  (when dired-details-r-mode
+    ;; Remove all overlays (unnecessary? evaporate property is used)
+    (dired-details-r-remove-all-overlays)))
+
 
 
 ;;
 ;; Setup
 ;;
 
-(defun dired-details-r-set-text-properties-after (beg end)
-  (dired-details-r-set-text-properties beg end))
-
-(defun dired-details-r-activate () (toggle-truncate-lines 1))
-
+;;;###autoload
 (defun dired-details-r-setup ()
   (interactive)
-  (advice-add 'dired-insert-set-properties :after 'dired-details-r-set-text-properties-after)
-  (define-key dired-mode-map "(" 'dired-details-r-toggle-combination)
-  (add-hook 'dired-mode-hook 'dired-details-r-activate)
-  (advice-add 'dired-revert :before 'dired-details-r-delete-overlays))
+  (add-hook 'dired-mode-hook 'dired-details--dired-mode-hook)
+)
 
-(defun dired-details-s-uninstall ()
+(defun dired-details-r-uninstall ()
   (interactive)
-  (advice-remove 'dired-insert-set-properties 'dired-details-r-set-text-properties-after)
-  (define-key dired-mode-map "(" 'dired-hide-details-mode)
-  (remove-hook 'dired-mode-hook 'dired-details-r-activate)
-  (advice-remove 'dired-revert 'dired-details-r-delete-overlays))
+  (dired-details-r-disable-global-hooks)
+  (remove-hook 'dired-mode-hook 'dired-details--dired-mode-hook)
+  ;; turn off dired-details-r-mode for all Dired buffers
+  (dolist (buffer (buffer-list))
+    (with-current-buffer buffer
+      (when dired-details-r-mode
+        (dired-details-r-mode -1)))))
 
-(dired-details-r-setup)
+
+(defun dired-details--dired-mode-hook ()
+  (dired-details-r-mode))
+
 
 
 (provide 'dired-details-r)
