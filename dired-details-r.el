@@ -203,23 +203,15 @@
 ;; Overlay Management
 ;;
 
-(defvar dired-details-r-overlay-list nil)
-(make-variable-buffer-local 'dired-details-r-overlay-list)
-
 (defun dired-details-r-add-overlay (beg end)
-  (let ((ovl (make-overlay beg end)))
-    (setq dired-details-r-overlay-list (cons ovl dired-details-r-overlay-list))
-    (overlay-put ovl 'modification-hooks '(dired-details-r-modification-hook))
+  (let ((ovl (make-overlay beg end nil t)))
+    (overlay-put ovl 'dired-details-r t)
+    (overlay-put ovl 'evaporate t)
     ovl))
-(defun dired-details-r-delete-overlays (&optional _arg _noconfirm)
-  (mapc 'delete-overlay dired-details-r-overlay-list)
-  (setq dired-details-r-overlay-list nil))
 
-(defun dired-details-r-modification-hook (o changed beg end &optional len)
-  (let ((inhibit-modification-hooks t))
-    (when (and changed (= beg end))
-      (delq o dired-details-r-overlay-list)
-      (delete-overlay o))))
+(defun dired-details-r-delete-overlays (&optional _arg _noconfirm)
+  (remove-overlays (point-min) (point-max) 'dired-details-r t))
+
 
 
 ;;
