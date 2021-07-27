@@ -25,6 +25,27 @@
 ;;; Code:
 
 
+
+;;
+;; Customizable variables
+;;
+
+(defcustom dired-details-r-max-filename-width 40 "" :group 'dired :type 'file)
+(defcustom dired-details-r-min-filename-width 0 "" :group 'dired :type 'file)
+
+(defcustom dired-details-r-combinations
+  '((all        . (size time perms links user group))
+    (size-time  . (size time))
+    (no-details . ()))
+  "Details combination list."
+  :group 'dired
+  :type 'file)
+
+(defface dired-details-r-today '((t (:foreground "GreenYellow"))) nil)
+(defface dired-details-r-dot-file '((t (:foreground "Gray50"))) nil)
+
+
+
 ;;
 ;; Constants
 ;;
@@ -52,21 +73,6 @@
 (defun dired-details-r-part-subexp (part) (nth 2 part))
 (defun dired-details-r-part-align-right (part) (nth 3 part))
 
-(defcustom dired-details-r-max-filename-width 40 "" :group 'dired :type 'file)
-(defcustom dired-details-r-min-filename-width 0 "" :group 'dired :type 'file)
-
-(defcustom dired-details-r-combinations
-  '((all        . (size time perms links user group))
-    (size-time  . (size time))
-    (no-details . ()))
-  "Details combination list."
-  :group 'dired
-  :type 'file)
-
-(defface dired-details-r-today '((t (:foreground "GreenYellow"))) nil)
-(defvar dired-details-r-today 'dired-details-r-today)
-(defface dired-details-r-dot-file '((t (:foreground "Gray50"))) nil)
-(defvar dired-details-r-dot-file 'dired-details-r-dot-file)
 
 
 ;;
