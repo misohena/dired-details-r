@@ -111,6 +111,8 @@
 (defvar-local dired-details-r-visible-parts nil
   "Current visible parts list.")
 
+(defvar-local dired-details-r-max-widths nil)
+
 
 
 ;;
@@ -138,6 +140,7 @@
     (setq-local dired-details-r-visible-parts
                 (cdr (assq dired-details-r-combination-name
                            dired-details-r-combinations)))
+    (setq-local dired-details-r-max-widths nil)
 
     ;; hook
     (dired-details-r-enable-global-hooks)
@@ -248,7 +251,7 @@
 
 (defun dired-details-r-set-appearance-changes (beg end)
   "Set text properties and overlays on file information lines."
-  (let ((max-widths nil))
+  (let ((max-widths dired-details-r-max-widths))
 
     ;; Calculate column width
     (dired-details-r-foreach-filenames
@@ -258,6 +261,8 @@
              (dired-details-r-max-part-widths
               max-widths
               (dired-details-r-match-part-strings)))))
+
+    (setq dired-details-r-max-widths max-widths)
 
     ;; Set text properties
     (dired-details-r-foreach-filenames
@@ -364,6 +369,8 @@
 
 (defun dired-details-r--dired-revert-hook (&optional _arg _noconfirm)
   (when dired-details-r-mode
+    ;; Reset column widths
+    (setq dired-details-r-max-widths nil)
     ;; Remove all overlays (unnecessary? evaporate property is used)
     (dired-details-r-remove-all-overlays)))
 
