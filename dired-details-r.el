@@ -183,8 +183,8 @@
      beg end
      #'(lambda ()
          ;; put details overlay
-         (let* ((details-beg (match-beginning 0))
-                (details-end (match-end 0))
+         (let* ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
+                (details-end (1- (point))) ;; keep whitespace after details. if not, wdired will not work properly
                 (filename-beg (point))
                 (filename-end (point-at-eol))
                 (part-strings (dired-details-r-match-part-strings))
