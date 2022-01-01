@@ -273,15 +273,12 @@
        beg end
        (lambda ()
          ;; put details overlay
-         (let* ((eol-beg (line-end-position))
-                (eol-end (1+ eol-beg))
-                (ovl (dired-details-r-add-overlay eol-beg eol-end))
-                (part-strings (dired-details-r-match-part-strings))
+         (let* ((part-strings (dired-details-r-match-part-strings))
                 (details-str (dired-details-r-set-face-details
                               (dired-details-r-make-details-string
                                max-widths part-strings)
                               part-strings)))
-           (overlay-put ovl 'display (concat details-str "\n")))
+           (dired-details-r-add-overlay (line-end-position) details-str))
 
          ;; erase details before filename
          (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
@@ -305,14 +302,35 @@
 ;; Overlay Management
 ;;
 
-(defun dired-details-r-add-overlay (beg end)
-  (let ((ovl (make-overlay beg end nil t)))
-    (overlay-put ovl 'dired-details-r t)
-    (overlay-put ovl 'evaporate t)
-    ovl))
+(defun dired-details-r-add-overlay (eol details-str)
+  ;; Slow
+  ;; (set-text-properties
+  ;;  eol (1+ eol)
+  ;;  (list 'display (concat details-str "\n")))
+
+  ;; Slow
+  ;; (let ((ovl (make-overlay eol (1+ eol) nil t)))
+  ;;   (overlay-put ovl 'dired-details-r t)
+  ;;   (overlay-put ovl 'evaporate t)
+  ;;   (overlay-put ovl 'display (concat details-str "\n"))
+  ;;   ovl)
+
+  ;; Fast but unable to put cursor at the end of filename while using wdired.
+  ;; (let ((ovl (make-overlay eol (1+ eol) nil t)))
+  ;;   (overlay-put ovl 'dired-details-r t)
+  ;;   (overlay-put ovl 'evaporate t)
+  ;;   (overlay-put ovl 'before-string details-str)
+  ;;   ovl)
+
+  ;; Fastest but unable to put cursor at the end of filename while using wdired.
+  (put-text-property
+   (1- eol) eol
+   'display (format "%c%s" (char-after (1- eol)) details-str))
+  )
 
 (defun dired-details-r-remove-all-overlays ()
-  (remove-overlays (point-min) (point-max) 'dired-details-r t))
+  ;;(remove-overlays (point-min) (point-max) 'dired-details-r t)
+  )
 
 
 
