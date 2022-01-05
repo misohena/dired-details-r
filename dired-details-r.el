@@ -114,6 +114,7 @@
 
 (defvar-local dired-details-r-max-widths nil)
 
+(defvar-local dired-details-r-overlay-method nil)
 
 
 ;;
@@ -145,7 +146,7 @@
 
     ;; hook
     (dired-details-r-enable-global-hooks)
-    (add-hook 'wdired-mode-hook 'dired-details-r-update-invisibility-spec nil t)
+    (add-hook 'wdired-mode-hook 'dired-details-r--wdired-mode-hook nil t)
 
     ;; change appearance
     (let ((inhibit-read-only t))
@@ -159,11 +160,15 @@
    ;; turn off
    (t
     ;; unhook
-    (remove-hook 'wdired-mode-hook 'dired-details-r-update-invisibility-spec t)
+    (remove-hook 'wdired-mode-hook 'dired-details-r--wdired-mode-hook t)
 
     ;; change appearance
     (dired-details-r-remove-all-appearance-changes))))
 
+(defun dired-details-r--wdired-mode-hook ()
+  ;; If the display of dired-details-r interferes with wdired, turn it off.
+  (when (memq dired-details-r-overlay-method '(textprop textprop-and-overlay))
+    (dired-details-r-remove-all-appearance-changes)))
 
 
 ;;
@@ -190,6 +195,12 @@
 ;;
 ;; Process dired buffer
 ;;
+
+(defun dired-details-r-initialize-buffer-settings ()
+  ;; Reset column widths
+  (setq dired-details-r-max-widths nil)
+  ;; Reset overlay method
+  (setq dired-details-r-overlay-method nil))
 
 (defun dired-details-r-foreach-filenames (beg end fun-at-filename)
   (save-excursion
@@ -252,8 +263,12 @@
 
 (defun dired-details-r-set-appearance-changes (beg end)
   "Set text properties and overlays on file information lines."
-  (when (and (not (eq dired-details-r-visible-parts 'disabled))
+
+  (when (and (< beg end)
+             (not (eq dired-details-r-visible-parts 'disabled))
              (listp dired-details-r-visible-parts))
+
+    (dired-details-r-update-overlay-method beg end)
 
     (let ((max-widths dired-details-r-max-widths))
 
@@ -301,8 +316,31 @@
 ;;
 ;; Overlay Management
 ;;
+(defconst dired-details-r-max-num-lines-to-use-overlay 1000)
+
+(defun dired-details-r-update-overlay-method (beg end)
+  ;; Use the text property when there are more than a certain number of lines.
+  ;; Fast with text properties but problem with cursor movement.
+  ;; Use overlays when the number of lines is small (most of the day).
+  (pcase dired-details-r-overlay-method
+    ('nil
+     (if (>= (line-number-at-pos end) dired-details-r-max-num-lines-to-use-overlay)
+         (setq dired-details-r-overlay-method 'textprop)
+       (setq dired-details-r-overlay-method 'overlay)))
+    ('overlay
+     (when (>= (line-number-at-pos end) dired-details-r-max-num-lines-to-use-overlay)
+       (setq dired-details-r-overlay-method 'textprop-and-overlay)))
+    ;; ('textprop) Keep method
+    ;; ('textprop-and-overlay) Keep method
+    )
+  ;;(message "dired-details-r-overlay-method=%s beg=%s end=%s" dired-details-r-overlay-method beg end)
+  )
+
 
 (defun dired-details-r-add-overlay (eol details-str)
+  ;; Replacing \n with the display property makes previous-line very slow.
+  ;; (When there are thousands of lines)
+
   ;; Slow
   ;; (set-text-properties
   ;;  eol (1+ eol)
@@ -312,26 +350,57 @@
   ;; (let ((ovl (make-overlay eol (1+ eol) nil t)))
   ;;   (overlay-put ovl 'dired-details-r t)
   ;;   (overlay-put ovl 'evaporate t)
-  ;;   (overlay-put ovl 'display (concat details-str "\n"))
-  ;;   ovl)
+  ;;   (overlay-put ovl 'display (concat details-str "\n")))
 
   ;; Fast but unable to put cursor at the end of filename while using wdired.
   ;; (let ((ovl (make-overlay eol (1+ eol) nil t)))
   ;;   (overlay-put ovl 'dired-details-r t)
   ;;   (overlay-put ovl 'evaporate t)
-  ;;   (overlay-put ovl 'before-string details-str)
-  ;;   ovl)
+  ;;   (overlay-put ovl 'before-string details-str))
 
-  ;; Fastest but unable to put cursor at the end of filename while using wdired.
-  (put-text-property
-   (1- eol) eol
-   'display (format "%c%s" (char-after (1- eol)) details-str))
-  )
+  (pcase dired-details-r-overlay-method
+    ;; Fastest but unable to put cursor at the end of filename while using wdired.
+    ((or 'textprop 'textprop-and-overlay)
+     (put-text-property
+      (1- eol) eol
+      'display (format "%c%s" (char-after (1- eol)) details-str)))
+
+    ;; Possible to put cursor at the end of filename.
+    ;; Slower than using text property.
+    ('overlay
+     (let ((ovl (make-overlay eol (1+ eol) nil t)))
+       (overlay-put ovl 'dired-details-r t)
+       (overlay-put ovl 'evaporate t)
+       (overlay-put ovl 'before-string (propertize details-str 'cursor 1))))))
 
 (defun dired-details-r-remove-all-overlays ()
-  ;;(remove-overlays (point-min) (point-max) 'dired-details-r t)
-  )
+  ;;(message "on dired-details-r-remove-all-overlays ovmethod=%s" dired-details-r-overlay-method)
+  ;; Remove display text property at the last character of lines
+  (when (memq dired-details-r-overlay-method '(textprop textprop-and-overlay))
+    (let ((inhibit-read-only t))
+      (save-excursion
+        (save-restriction
+          (widen)
+          (dired-details-r-foreach-filenames
+           (point-min)
+           (point-max)
+           (lambda ()
+             (let ((eol (line-end-position)))
+               (remove-text-properties (1- eol) eol '(display)))))))))
 
+  ;; Remove overlays
+  (when (memq dired-details-r-overlay-method '(overlay textprop-and-overlay))
+    (remove-overlays (point-min) (point-max) 'dired-details-r t))
+
+  ;; Reset overlay method
+  (setq dired-details-r-overlay-method nil))
+
+(defun dired-details-r-remove-all-overlays-on-revert ()
+  ;; Should have already been removed by the effect of the evaporate property.
+  ;;  (remove-overlays (point-min) (point-max) 'dired-details-r t)
+
+  ;; Should be automatically removed when using text properties.
+  )
 
 
 ;;
@@ -391,10 +460,10 @@
 
 (defun dired-details-r--dired-revert-hook (&optional _arg _noconfirm)
   (when dired-details-r-mode
-    ;; Reset column widths
-    (setq dired-details-r-max-widths nil)
     ;; Remove all overlays (unnecessary? evaporate property is used)
-    (dired-details-r-remove-all-overlays)))
+    (dired-details-r-remove-all-overlays-on-revert)
+    ;; Reset column width and overlay method
+    (dired-details-r-initialize-buffer-settings)))
 
 
 
