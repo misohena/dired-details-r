@@ -29,6 +29,7 @@
 
 ;;; Code:
 
+(require 'dired)
 
 
 ;;
@@ -318,7 +319,7 @@
 ;;
 (defconst dired-details-r-max-num-lines-to-use-overlay 1000)
 
-(defun dired-details-r-update-overlay-method (beg end)
+(defun dired-details-r-update-overlay-method (_beg end)
   ;; Use the text property when there are more than a certain number of lines.
   ;; Fast with text properties but problem with cursor movement.
   ;; Use overlays when the number of lines is small (most of the day).
