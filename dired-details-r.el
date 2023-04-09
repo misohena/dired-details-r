@@ -127,7 +127,7 @@
   "Display detailed information on the right side of the buffer."
   :group 'dired
   :keymap (let ((keymap (make-sparse-keymap)))
-            (define-key keymap (kbd "(") 'dired-details-r-toggle-combination)
+            (define-key keymap (kbd "(") 'dired-details-r-toggle-combination-in-dired-mode)
             keymap)
   (unless (derived-mode-p 'dired-mode)
     (error "Not a Dired buffer"))
@@ -407,6 +407,12 @@
 ;;
 ;; Switch Combination
 ;;
+
+(defun dired-details-r-toggle-combination-in-dired-mode ()
+  (interactive)
+  (if (derived-mode-p 'dired-mode)
+      (dired-details-r-toggle-combination)
+    (call-interactively 'self-insert-command)))
 
 (defun dired-details-r-toggle-combination ()
   (interactive)
