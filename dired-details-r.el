@@ -244,7 +244,7 @@
                                  (min (car (last max-widths))
                                       dired-details-r-max-filename-width)))
            (filename-spaces (max
-                             0
+                             1
                              (- filename-max-width filename-curr-width -1))))
       filename-spaces)
     ? )
