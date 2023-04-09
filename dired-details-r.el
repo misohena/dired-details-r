@@ -72,6 +72,22 @@
   ""
   :group 'dired-details-r-faces)
 
+(defcustom dired-details-r-date-format
+  "A format string to use when determining whether a date is today.
+
+Used by the `dired-details-r-set-face-part' function to determine
+whether to apply the `dired-details-r-today' face to the
+timestamp part.
+
+The value is specified as the first argument of `format-time-string'.
+
+May be related to `ls-lisp-format-time-list'.
+
+For example, if the date format output by ls is 2023-01-02 12:34,
+specify %Y-%m-%d."
+  "%b %e"
+  :group 'dired-details-r-faces
+  :type 'string)
 
 
 ;;
@@ -180,7 +196,8 @@
   (cond
    ;; highlight today
    ((and (eq part-name 'time)
-         (string-match (format-time-string "%b %e" (current-time)) str))
+         (string-match
+          (format-time-string dired-details-r-date-format (current-time)) str))
     (propertize str 'face 'dired-details-r-today))
    (t str)))
 
