@@ -162,8 +162,9 @@ specify %Y-%m-%d."
     (setq-local dired-details-r-max-widths nil)
 
     ;; hook
-    (dired-details-r-enable-global-hooks)
+    ;;(dired-details-r-enable-global-hooks)
     (add-hook 'wdired-mode-hook 'dired-details-r--wdired-mode-hook nil t)
+    (add-hook 'dired-after-readin-hook 'dired-details-r--after-readin-hook 100 t) ;; Ensure called after all-the-icons-dired--after-readin-hook and image-dired-dired-after-readin-hook
 
     ;; change appearance
     (let ((inhibit-read-only t))
@@ -178,6 +179,7 @@ specify %Y-%m-%d."
    (t
     ;; unhook
     (remove-hook 'wdired-mode-hook 'dired-details-r--wdired-mode-hook t)
+    (remove-hook 'dired-after-readin-hook 'dired-details-r--after-readin-hook t)
 
     ;; change appearance
     (dired-details-r-remove-all-appearance-changes))))
@@ -456,39 +458,47 @@ specify %Y-%m-%d."
 ;; Global Hooks
 ;;
 
-(defvar dired-details-r-enabled-global-hooks nil)
+;; (defvar dired-details-r-enabled-global-hooks nil)
 
-(defun dired-details-r-enable-global-hooks ()
-  (when (not dired-details-r-enabled-global-hooks)
-    (advice-add 'dired-insert-set-properties
-                :after
-                'dired-details-r--dired-insert-set-properties-hook)
-    (advice-add 'dired-revert
-                :before
-                'dired-details-r--dired-revert-hook)
-    (setq dired-details-r-enabled-global-hooks t)))
+;; (defun dired-details-r-enable-global-hooks ()
+;;   (when (not dired-details-r-enabled-global-hooks)
+;;     (advice-add 'dired-insert-set-properties
+;;                 :after
+;;                 'dired-details-r--dired-insert-set-properties-hook)
+;;     (advice-add 'dired-revert
+;;                 :before
+;;                 'dired-details-r--dired-revert-hook)
+;;     (setq dired-details-r-enabled-global-hooks t)))
 
-(defun dired-details-r-disable-global-hooks ()
-  (when dired-details-r-enabled-global-hooks
-    (advice-remove 'dired-insert-set-properties
-                   'dired-details-r--dired-insert-set-properties-hook)
-    (advice-remove 'dired-revert
-                   'dired-details-r--dired-revert-hook)
-    (setq dired-details-r-enabled-global-hooks nil)))
+;; (defun dired-details-r-disable-global-hooks ()
+;;   (when dired-details-r-enabled-global-hooks
+;;     (advice-remove 'dired-insert-set-properties
+;;                    'dired-details-r--dired-insert-set-properties-hook)
+;;     (advice-remove 'dired-revert
+;;                    'dired-details-r--dired-revert-hook)
+;;     (setq dired-details-r-enabled-global-hooks nil)))
 
 
-(defun dired-details-r--dired-insert-set-properties-hook (beg end)
-  (when dired-details-r-mode
-    ;; Insert text properties and overlays from beg to end
-    (dired-details-r-set-appearance-changes beg end)))
+;; (defun dired-details-r--dired-insert-set-properties-hook (beg end)
+;;   (when dired-details-r-mode
+;;     ;; Insert text properties and overlays from beg to end
+;;     (dired-details-r-set-appearance-changes beg end)))
 
-(defun dired-details-r--dired-revert-hook (&optional _arg _noconfirm)
+;; (defun dired-details-r--dired-revert-hook (&optional _arg _noconfirm)
+;;   (when dired-details-r-mode
+;;     ;; Remove all overlays (unnecessary? evaporate property is used)
+;;     (dired-details-r-remove-all-overlays-on-revert)
+;;     ;; Reset column width and overlay method
+;;     (dired-details-r-initialize-buffer-settings)))
+
+(defun dired-details-r--after-readin-hook ()
   (when dired-details-r-mode
     ;; Remove all overlays (unnecessary? evaporate property is used)
     (dired-details-r-remove-all-overlays-on-revert)
     ;; Reset column width and overlay method
-    (dired-details-r-initialize-buffer-settings)))
-
+    (dired-details-r-initialize-buffer-settings)
+    ;; Insert text properties and overlays from beg to end
+    (dired-details-r-set-appearance-changes (point-min) (point-max))))
 
 
 ;;
@@ -498,21 +508,20 @@ specify %Y-%m-%d."
 ;;;###autoload
 (defun dired-details-r-setup ()
   (interactive)
-  (add-hook 'dired-mode-hook 'dired-details--dired-mode-hook)
-)
+  ;; Ensure called after all-the-icons-dired-mode
+  (add-hook 'dired-mode-hook 'dired-details-r--dired-mode-hook 100))
 
 (defun dired-details-r-uninstall ()
   (interactive)
-  (dired-details-r-disable-global-hooks)
-  (remove-hook 'dired-mode-hook 'dired-details--dired-mode-hook)
+  ;; (dired-details-r-disable-global-hooks)
+  (remove-hook 'dired-mode-hook 'dired-details-r--dired-mode-hook)
   ;; turn off dired-details-r-mode for all Dired buffers
   (dolist (buffer (buffer-list))
     (with-current-buffer buffer
       (when dired-details-r-mode
         (dired-details-r-mode -1)))))
 
-
-(defun dired-details--dired-mode-hook ()
+(defun dired-details-r--dired-mode-hook ()
   (dired-details-r-mode))
 
 
