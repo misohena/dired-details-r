@@ -1,6 +1,6 @@
 ;;; dired-details-r.el ---                        -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2016-2021 AKIYAMA Kouhei
+;; Copyright (C) 2016-2023 AKIYAMA Kouhei
 
 ;; Author: AKIYAMA Kouhei <misohena@gmail.com>
 ;; Keywords: Dired
