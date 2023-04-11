@@ -194,6 +194,7 @@ string specified in `dired-details-r-date-format' is included."
     (error "Not a Dired buffer"))
 
   (dired-details-r-update-invisibility-spec)
+  (dired-details-r-update-isearch-settings)
 
   (cond
    ;; turn on
@@ -236,7 +237,7 @@ string specified in `dired-details-r-date-format' is included."
   (if (memq dired-details-r-overlay-method '(textprop textprop-and-overlay))
       (dired-details-r-remove-all-appearance-changes)
     ;; Show truncated part of filenames
-    (remove-from-invisibility-spec '(dired-details-r-filename-overflow . t))))
+    (dired-details-r-set-filename-overflow-visibility t)))
 
 
 ;;;; Set face to string
@@ -454,7 +455,7 @@ string specified in `dired-details-r-date-format' is included."
 (defun dired-details-r-set-appearance-changes (beg end)
   "Set text properties and overlays on file information lines."
 
-  (add-to-invisibility-spec '(dired-details-r-filename-overflow . t))
+  (dired-details-r-set-filename-overflow-visibility nil)
 
   (when (and (< beg end)
              (not (eq dired-details-r-visible-parts 'disabled))
@@ -497,11 +498,15 @@ string specified in `dired-details-r-date-format' is included."
 
 (defun dired-details-r-update-invisibility-spec ()
   (if dired-details-r-mode
-      (progn
-        (add-to-invisibility-spec 'dired-details-r-detail)
-        (add-to-invisibility-spec '(dired-details-r-filename-overflow . t)))
-    (remove-from-invisibility-spec 'dired-details-r-detail)
-    (remove-from-invisibility-spec '(dired-details-r-filename-overflow . t))))
+      (add-to-invisibility-spec 'dired-details-r-detail)
+    (remove-from-invisibility-spec 'dired-details-r-detail))
+
+  (dired-details-r-set-filename-overflow-visibility (not dired-details-r-mode)))
+
+(defun dired-details-r-set-filename-overflow-visibility (visible)
+  (if visible
+      (remove-from-invisibility-spec '(dired-details-r-filename-overflow . t))
+    (add-to-invisibility-spec '(dired-details-r-filename-overflow . t))))
 
 (defun dired-details-r-update-display-table ()
   (if (and (stringp dired-details-r-ellipsis)
@@ -654,7 +659,27 @@ string specified in `dired-details-r-date-format' is included."
     (dired-details-r-mode)))
 
 
+;;;; isearch
+
+(defun dired-details-r-update-isearch-settings ()
+  (if dired-details-r-mode
+      (progn
+        (setq-local search-invisible t)
+        (add-hook 'isearch-mode-hook 'dired-details-r-isearch-start nil t)
+        (add-hook 'isearch-mode-end-hook 'dired-details-r-isearch-end nil t))
+    (kill-local-variable 'search-invisible)
+    (remove-hook 'isearch-mode-hook 'dired-details-r-isearch-start t)
+    (remove-hook 'isearch-mode-end-hook 'dired-details-r-isearch-end t)))
+
+(defun dired-details-r-isearch-start ()
+  (dired-details-r-set-filename-overflow-visibility t))
+
+(defun dired-details-r-isearch-end ()
+  (dired-details-r-set-filename-overflow-visibility nil))
+
+
 ;;;; Observe Dired Buffer Changes
+
 
 ;; (defvar dired-details-r-enabled-global-hooks nil)
 
@@ -699,7 +724,8 @@ string specified in `dired-details-r-date-format' is included."
     (dired-details-r-set-appearance-changes (point-min) (point-max))))
 
 
-;; Support for find-dired
+;;;; Support for find-dired
+
 
 (defcustom dired-details-r-use-in-find-dired nil
   "If non-nil, the layout is updated after the execution of find-dired.
