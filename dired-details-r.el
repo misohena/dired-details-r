@@ -512,15 +512,31 @@ string specified in `dired-details-r-date-format' is included."
 (defun dired-details-r-toggle-combination ()
   (interactive)
   ;; Rotate combination
+  (dired-details-r-rotate-combination-variable)
+  ;; Refresh buffer
+  (if (equal (buffer-name) "*Find*")
+      ;;@todo Check revert-buffer-function?
+      ;; Do not revert-buffer as it will re-run find.
+      ;;@todo Always use this method? (never use revert-buffer?)
+      (progn
+        (dired-details-r-remove-all-appearance-changes)
+        (let ((inhibit-read-only t))
+          (dired-details-r-set-appearance-changes (point-min) (point-max))))
+    (revert-buffer)))
+
+(defun dired-details-r-rotate-combination-variable ()
   (let* ((curr-combination-def
           (let ((combs dired-details-r-combinations))
-            (while (and combs (not (eq (caar combs) dired-details-r-combination-name))) (setq combs (cdr combs)))
+            (while (and combs
+                        (not (eq (caar combs)
+                                 dired-details-r-combination-name)))
+              (setq combs (cdr combs)))
             combs))
-         (next-combination-def (or (cadr curr-combination-def) (car dired-details-r-combinations))))
+         (next-combination-def
+          (or (cadr curr-combination-def)
+              (car dired-details-r-combinations))))
     (setq dired-details-r-combination-name (car next-combination-def))
-    (setq dired-details-r-visible-parts (cdr next-combination-def)))
-  ;; Refresh buffer
-  (revert-buffer))
+    (setq dired-details-r-visible-parts (cdr next-combination-def))))
 
 (defun dired-details-r-mode-or-toggle-combination ()
   (interactive)
@@ -573,6 +589,25 @@ string specified in `dired-details-r-date-format' is included."
     ;; Insert text properties and overlays from beg to end
     (dired-details-r-set-appearance-changes (point-min) (point-max))))
 
+
+;; Support for find-dired
+
+(defcustom dired-details-r-use-in-find-dired nil
+  "If non-nil, the layout is updated after the execution of find-dired.
+
+This is not recommended as the layout tends to be corrupted by
+long path names.
+
+You can change the layout by pressing `('."
+  :group 'dired-details-r
+  :type 'boolean)
+
+(when dired-details-r-use-in-find-dired
+  (defun dired-details-r--after-find-dired-sentinel (&rest _)
+    (dired-details-r--after-readin-hook))
+
+  (advice-add 'find-dired-sentinel :after
+              'dired-details-r--after-find-dired-sentinel))
 
 ;;;; Setup
 
