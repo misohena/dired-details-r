@@ -32,45 +32,42 @@
 (require 'dired)
 
 
-;;
-;; Customizable variables
-;;
+;;;; Customizable variables
+
 
 (defgroup dired-details-r nil
-  "Mode to display file information to the right of filename."
+  "Display file details to the right of the file name in dired."
   :group 'dired)
 
-(defcustom dired-details-r-max-filename-width 52 "" :group 'dired-details-r :type 'integer)
-(defcustom dired-details-r-min-filename-width 40 "" :group 'dired-details-r :type 'integer)
+(defcustom dired-details-r-min-filename-width 40
+  "Width always reserved for file names.
+
+The area for displaying file names is never less than this width."
+  :group 'dired-details-r :type 'integer)
+
+(defcustom dired-details-r-max-filename-width 52
+  "The maximum width to always reserve for file names in the entire buffer.
+
+Even if there is a file name whose length exceeds this width, the
+layout of the entire buffer will not change any further."
+  :group 'dired-details-r :type 'integer)
 
 (defcustom dired-details-r-combinations
   '((size-time  . (size time))
     (no-details . ())
     (disabled   . disabled)
     (all        . (size time perms links user group)))
-  "Details combination list."
+  "A list of combinations of file detail information to display.
+
+ The combination is rotated by calling
+ `dired-details-r-toggle-combination' command."
   :group 'dired-details-r
   :type '(repeat sexp))
 
 (defcustom dired-details-r-truncate-lines t
-  "" :group 'dired-details-r :type 'boolean)
-
-
-
-(defgroup dired-details-r-faces nil
-  "Faces used by dired-details-r."
+  "If non-nil, truncate lines."
   :group 'dired-details-r
-  :group 'faces)
-
-(defface dired-details-r-today
-  '((t (:foreground "GreenYellow")))
-  ""
-  :group 'dired-details-r-faces)
-
-(defface dired-details-r-dot-file
-  '((t (:foreground "Gray50")))
-  ""
-  :group 'dired-details-r-faces)
+  :type 'boolean)
 
 (defcustom dired-details-r-date-format
   "A format string to use when determining whether a date is today.
@@ -97,9 +94,31 @@ Set to nil if too slow or unstable."
   :group 'dired-details-r
   :type 'boolean)
 
-;;
-;; Constants
-;;
+
+;;;; Faces
+
+
+(defgroup dired-details-r-faces nil
+  "Faces used by dired-details-r."
+  :group 'dired-details-r
+  :group 'faces)
+
+(defface dired-details-r-today
+  '((t (:foreground "GreenYellow")))
+  "Face for indicating today's timestamp.
+
+Whether it is today's date or not is determined by whether the
+string specified in `dired-details-r-date-format' is included."
+  :group 'dired-details-r-faces)
+
+(defface dired-details-r-dot-file
+  '((t (:foreground "Gray50")))
+  "Face for dot file."
+  :group 'dired-details-r-faces)
+
+
+;;;; Constants
+
 
 (defconst dired-details-r-regexp
   (concat
@@ -125,10 +144,8 @@ Set to nil if too slow or unstable."
 (defun dired-details-r-part-align-right (part) (nth 3 part))
 
 
+;;;; Variables
 
-;;
-;; Variables
-;;
 
 (defvar-local dired-details-r-combination-name nil
   "Current details combination.")
@@ -141,13 +158,12 @@ Set to nil if too slow or unstable."
 (defvar-local dired-details-r-overlay-method nil)
 
 
-;;
-;; Minor Mode
-;;
+;;;; Minor Mode
+
 
 ;;;###autoload
 (define-minor-mode dired-details-r-mode
-  "Display detailed information on the right side of the buffer."
+  "Display file details to the right of the file name in dired."
   :group 'dired
   :keymap (let ((keymap (make-sparse-keymap)))
             (define-key keymap (kbd "(") 'dired-details-r-toggle-combination-in-dired-mode)
@@ -197,9 +213,8 @@ Set to nil if too slow or unstable."
     (dired-details-r-remove-all-appearance-changes)))
 
 
-;;
-;; Set face to string
-;;
+;;;; Set face to string
+
 
 (defun dired-details-r-set-face-part (str part-name)
   (cond
@@ -218,10 +233,8 @@ Set to nil if too slow or unstable."
    (t str)))
 
 
+;;;; Process dired buffer
 
-;;
-;; Process dired buffer
-;;
 
 (defun dired-details-r-initialize-buffer-settings ()
   ;; Reset column widths
@@ -394,10 +407,9 @@ Set to nil if too slow or unstable."
     (remove-from-invisibility-spec 'dired-details-r-detail)))
 
 
+;;;; Overlay Management
 
-;;
-;; Overlay Management
-;;
+
 (defconst dired-details-r-max-num-lines-to-use-overlay 1000)
 
 (defun dired-details-r-update-overlay-method (_beg end)
@@ -485,9 +497,8 @@ Set to nil if too slow or unstable."
   )
 
 
-;;
-;; Switch Combination
-;;
+;;;; Switch Combination
+
 
 (defun dired-details-r-toggle-combination-in-dired-mode ()
   (interactive)
@@ -515,10 +526,7 @@ Set to nil if too slow or unstable."
     (dired-details-r-mode)))
 
 
-
-;;
-;; Global Hooks
-;;
+;;;; Observe Dired Buffer Changes
 
 ;; (defvar dired-details-r-enabled-global-hooks nil)
 
@@ -563,9 +571,8 @@ Set to nil if too slow or unstable."
     (dired-details-r-set-appearance-changes (point-min) (point-max))))
 
 
-;;
-;; Setup
-;;
+;;;; Setup
+
 
 ;;;###autoload
 (defun dired-details-r-setup ()
