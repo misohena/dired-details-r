@@ -252,6 +252,13 @@ string specified in `dired-details-r-date-format' is included."
               (funcall fun-at-filename))))
       (forward-line 1))))
 
+(defmacro dired-details-r-do-filenames (beg end &rest body)
+  (declare (indent 2))
+  `(dired-details-r-foreach-filenames
+    ,beg ,end
+    (lambda ()
+      ,@body)))
+
 (defun dired-details-r-text-pixel-size (from to)
   ;; See `shr-pixel-column' technic.
   (if (eq (window-buffer) (current-buffer))
@@ -362,13 +369,11 @@ string specified in `dired-details-r-date-format' is included."
           lines)
 
       ;; Cache parts (Avoid computing length of parts twice)
-      (dired-details-r-foreach-filenames
-       beg end
-       (lambda ()
-         (push (cons
-                (point)
-                (dired-details-r-match-part-strings))
-               lines)))
+      (dired-details-r-do-filenames beg end
+        (push (cons
+               (point)
+               (dired-details-r-match-part-strings))
+              lines))
       (setq lines (nreverse lines))
 
       ;; Calculate column width
@@ -475,12 +480,9 @@ string specified in `dired-details-r-date-format' is included."
       (save-excursion
         (save-restriction
           (widen)
-          (dired-details-r-foreach-filenames
-           (point-min)
-           (point-max)
-           (lambda ()
-             (let ((eol (line-end-position)))
-               (remove-text-properties (1- eol) eol '(display)))))))))
+          (dired-details-r-do-filenames (point-min) (point-max)
+            (let ((eol (line-end-position)))
+              (remove-text-properties (1- eol) eol '(display))))))))
 
   ;; Remove overlays
   (when (memq dired-details-r-overlay-method '(overlay textprop-and-overlay))
