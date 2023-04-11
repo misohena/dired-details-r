@@ -259,14 +259,17 @@ string specified in `dired-details-r-date-format' is included."
     (lambda ()
       ,@body)))
 
-(defun dired-details-r-text-pixel-size (from to)
+(defun dired-details-r-text-pixel-width (from to)
   ;; See `shr-pixel-column' technic.
-  (if (eq (window-buffer) (current-buffer))
-      (window-text-pixel-size nil from to)
-    (save-window-excursion
-      (set-window-dedicated-p nil nil)
-      (set-window-buffer nil (current-buffer))
-      (window-text-pixel-size nil from to))))
+  (let ((bol (line-beginning-position)))
+    (if (eq (window-buffer) (current-buffer))
+        (- (car (window-text-pixel-size nil bol to 100000))
+           (car (window-text-pixel-size nil bol from 100000)))
+      (save-window-excursion
+        (set-window-dedicated-p nil nil)
+        (set-window-buffer nil (current-buffer))
+        (- (car (window-text-pixel-size nil bol to 100000))
+           (car (window-text-pixel-size nil bol from 100000)))))))
 
 (defun dired-details-r-width-before-filename (beginning-of-filename)
   "Return width of objects preceding file name."
@@ -287,11 +290,12 @@ string specified in `dired-details-r-date-format' is included."
                         ))
                      (overlays-in (1- beginning-of-filename)
                                   (1+ beginning-of-filename))))
-      (let* (;; (char-w (car (dired-details-r-text-pixel-size
-             ;;               beginning-of-filename (1+ beginning-of-filename)))) ;;slow?
+      (let* (;; (char-w (dired-details-r-text-pixel-width
+             ;;          beginning-of-filename (1+ beginning-of-filename)))
+             ;;slow?
              (char-w (frame-char-width)) ;;@todo OK?
-             (prev-w (car (dired-details-r-text-pixel-size
-                           (1- beginning-of-filename) beginning-of-filename)))
+             (prev-w (dired-details-r-text-pixel-width
+                      (1- beginning-of-filename) beginning-of-filename))
              (prev-chars (max 0 (1- (floor (+ 0.5 (/ prev-w char-w)))))))
         prev-chars)
     0))
