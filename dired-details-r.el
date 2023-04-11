@@ -165,9 +165,9 @@ string specified in `dired-details-r-date-format' is included."
 (define-minor-mode dired-details-r-mode
   "Display file details to the right of the file name in dired."
   :group 'dired
-  :keymap (let ((keymap (make-sparse-keymap)))
-            (define-key keymap (kbd "(") 'dired-details-r-toggle-combination-in-dired-mode)
-            keymap)
+  :keymap (let ((km (make-sparse-keymap)))
+            (define-key km "(" 'dired-details-r-toggle-combination-in-dired-mode)
+            km)
   (unless (derived-mode-p 'dired-mode)
     (error "Not a Dired buffer"))
 
@@ -403,7 +403,8 @@ string specified in `dired-details-r-date-format' is included."
 (defun dired-details-r-remove-all-appearance-changes ()
   "Remove all invisible text properties and overlays for dired-details-r."
   (let ((inhibit-read-only t))
-    (remove-text-properties (point-min) (point-max) '(invisible 'dired-details-r-detail)))
+    (remove-text-properties (point-min) (point-max)
+                            '(invisible 'dired-details-r-detail)))
   (dired-details-r-remove-all-overlays))
 
 (defun dired-details-r-update-invisibility-spec ()
