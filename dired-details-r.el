@@ -89,6 +89,13 @@ specify %Y-%m-%d."
   :group 'dired-details-r-faces
   :type 'string)
 
+(defcustom dired-details-r-consider-overlays-before-filename-p t
+  "When non-nil, consider image-dired and all-the-icons-dired
+overlays in front of the filename.
+
+Set to nil if too slow or unstable."
+  :group 'dired-details-r
+  :type 'boolean)
 
 ;;
 ;; Constants
@@ -232,12 +239,59 @@ specify %Y-%m-%d."
               (funcall fun-at-filename))))
       (forward-line 1))))
 
+(defun dired-details-r-text-pixel-size (from to)
+  ;; See `shr-pixel-column' technic.
+  (if (eq (window-buffer) (current-buffer))
+      (window-text-pixel-size nil from to)
+    (save-window-excursion
+      (set-window-dedicated-p nil nil)
+      (set-window-buffer nil (current-buffer))
+      (window-text-pixel-size nil from to))))
+
+(defun dired-details-r-width-before-filename (beginning-of-filename)
+  "Return width of objects preceding file name."
+  (if (and dired-details-r-consider-overlays-before-filename-p
+           (display-graphic-p)
+           ;; Find overlays before filename, for example image-dired thumbnails.
+           ;; I want to avoid calling window-text-pixel-size as much as possible
+           (seq-some (lambda (ov)
+                       (or
+                        ;; for image-dired
+                        (and (= (overlay-start ov) beginning-of-filename)
+                             (= (overlay-end ov) beginning-of-filename)
+                             (overlay-get ov 'before-string))
+                        ;; for all-the-icons-dired
+                        (and (= (overlay-start ov) (1- beginning-of-filename))
+                             (= (overlay-end ov) beginning-of-filename)
+                             (overlay-get ov 'after-string))
+                        ))
+                     (overlays-in (1- beginning-of-filename)
+                                  (1+ beginning-of-filename))))
+      (let* (;; (char-w (car (dired-details-r-text-pixel-size
+             ;;               beginning-of-filename (1+ beginning-of-filename)))) ;;slow?
+             (char-w (frame-char-width)) ;;@todo OK?
+             (prev-w (car (dired-details-r-text-pixel-size
+                           (1- beginning-of-filename) beginning-of-filename)))
+             (prev-chars (max 0 (1- (floor (+ 0.5 (/ prev-w char-w)))))))
+        prev-chars)
+    0))
+
 (defun dired-details-r-match-part-strings ()
   "Return strings of text matched by looking-back dired-details-r-regexp."
   (append
-   (mapcar #'(lambda (part) (match-string (dired-details-r-part-subexp part))) dired-details-r-parts)
+   (mapcar #'(lambda (part)
+               (match-string (dired-details-r-part-subexp part)))
+           dired-details-r-parts)
    ;; last element is filename
-   (list (buffer-substring (point) (point-at-eol)))))
+   (list
+    (concat
+     (buffer-substring (point) (point-at-eol))
+     ;; Add spaces of the same width as overlays that exists before filename.
+     ;;@todo Remove this hack.
+     (let ((width-before-filename
+            (dired-details-r-width-before-filename (point))))
+       (when (> width-before-filename 0)
+         (make-string width-before-filename ? )))))))
 
 (defun dired-details-r-max-part-widths (max-widths part-strings)
   "Calculate max width of parts and filename."
@@ -291,35 +345,42 @@ specify %Y-%m-%d."
 
     (dired-details-r-update-overlay-method beg end)
 
-    (let ((max-widths dired-details-r-max-widths))
+    (let ((max-widths dired-details-r-max-widths)
+          lines)
 
-      ;; Calculate column width
+      ;; Cache parts (Avoid computing length of parts twice)
       (dired-details-r-foreach-filenames
        beg end
        (lambda ()
-         (setq max-widths
-               (dired-details-r-max-part-widths
-                max-widths
-                (dired-details-r-match-part-strings)))))
+         (push (cons
+                (point)
+                (dired-details-r-match-part-strings))
+               lines)))
+      (setq lines (nreverse lines))
 
+      ;; Calculate column width
+      (dolist (line lines)
+        (setq max-widths
+              (dired-details-r-max-part-widths max-widths (cdr line))))
       (setq dired-details-r-max-widths max-widths)
 
       ;; Set text properties
-      (dired-details-r-foreach-filenames
-       beg end
-       (lambda ()
-         ;; put details overlay
-         (let* ((part-strings (dired-details-r-match-part-strings))
-                (details-str (dired-details-r-set-face-details
-                              (dired-details-r-make-details-string
-                               max-widths part-strings)
-                              part-strings)))
-           (dired-details-r-add-overlay (line-end-position) details-str))
+      (with-silent-modifications
+        (save-excursion
+          (dolist (line lines)
+            (goto-char (car line))
+            ;; put details overlay
+            (let* ((part-strings (cdr line))
+                   (details-str (dired-details-r-set-face-details
+                                 (dired-details-r-make-details-string
+                                  max-widths part-strings)
+                                 part-strings)))
+              (dired-details-r-add-overlay (line-end-position) details-str))
 
-         ;; erase details before filename
-         (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
-               (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
-           (put-text-property details-beg details-end 'invisible 'dired-details-r-detail)))))))
+            ;; erase details before filename
+            (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
+                  (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
+              (put-text-property details-beg details-end 'invisible 'dired-details-r-detail))))))))
 
 (defun dired-details-r-remove-all-appearance-changes ()
   "Remove all invisible text properties and overlays for dired-details-r."
