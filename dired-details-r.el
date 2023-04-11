@@ -424,7 +424,9 @@ string specified in `dired-details-r-date-format' is included."
                        'invisible 'dired-details-r-detail))
 
   ;; Truncate file name
-  (when dired-details-r-truncate-filenames
+  (when (and dired-details-r-truncate-filenames
+             ;; Don't truncate if all details are hidden
+             dired-details-r-visible-parts)
     (let* ((filename-part-w
             ;;NOTE: Include thumbnail and icon width
             (dired-details-r-filename-part-width parts))
