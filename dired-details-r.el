@@ -254,32 +254,33 @@ specify %Y-%m-%d."
 
 
 (defun dired-details-r-make-details-string (max-widths part-strings)
-  (concat
-   ;; spaces after filename
-   (make-string
-    (let* ((filename-curr-width (string-width (car (last part-strings))))
-           (filename-max-width  (max
-                                 dired-details-r-min-filename-width
-                                 (min (car (last max-widths))
-                                      dired-details-r-max-filename-width)))
-           (filename-spaces (max
-                             1
-                             (- filename-max-width filename-curr-width -1))))
-      filename-spaces)
-    ? )
-   ;; details
-   (mapconcat
-    #'(lambda (part-name)
-        (let* ((part (assq part-name dired-details-r-parts))
-               (index (dired-details-r-part-index part))
-               (align-right (dired-details-r-part-align-right part))
-               (spaces-width (-  ;; (max width) - (current width)
-                              (nth index max-widths)
-                              (string-width (nth index part-strings))))
-               (spaces (make-string spaces-width ? ))
-               (value (dired-details-r-set-face-part (nth index part-strings) part-name)))
-          (if align-right (concat spaces value) (concat value spaces))))
-    dired-details-r-visible-parts " ")))
+  (let* ((filename-curr-width (string-width (car (last part-strings))))
+         (filename-max-width  (max
+                               dired-details-r-min-filename-width
+                               (min (car (last max-widths))
+                                    dired-details-r-max-filename-width)))
+         (overflow (max 0 (- filename-curr-width filename-max-width))))
+    (concat
+     ;; spaces after filename
+     (make-string
+      (max 1 (- filename-max-width filename-curr-width -1))
+      ? )
+     ;; details
+     (mapconcat
+      #'(lambda (part-name)
+          (let* ((part (assq part-name dired-details-r-parts))
+                 (index (dired-details-r-part-index part))
+                 (align-right (dired-details-r-part-align-right part))
+                 (spaces-width (-  ;; (max width) - (current width)
+                                (nth index max-widths)
+                                (string-width (nth index part-strings))))
+                 (overflow-delta (min spaces-width overflow))
+                 (spaces-width (- spaces-width overflow-delta))
+                 (spaces (make-string spaces-width ? ))
+                 (value (dired-details-r-set-face-part (nth index part-strings) part-name)))
+            (setq overflow (- overflow overflow-delta))
+            (if align-right (concat spaces value) (concat value spaces))))
+      dired-details-r-visible-parts " "))))
 
 (defun dired-details-r-set-appearance-changes (beg end)
   "Set text properties and overlays on file information lines."
