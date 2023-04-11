@@ -30,6 +30,7 @@
 ;;; Code:
 
 (require 'dired)
+(require 'cl-lib)
 
 
 ;;;; Customizable variables
@@ -94,6 +95,19 @@ Set to nil if too slow or unstable."
   :group 'dired-details-r
   :type 'boolean)
 
+(defcustom dired-details-r-truncate-filenames t
+  "When non-nil, filenames are truncated to the maximum width."
+  :group 'dired-details-r
+  :type 'boolean)
+
+(defcustom dired-details-r-ellipsis nil
+  "The ellipsis to use in the Dired buffer.
+
+When nil, just use the standard three dots.  When a non-empty string,
+use that string instead."
+  :group 'org-startup
+  :type '(choice (const :tag "Default" nil)
+                 (string :tag "String" :value "...")))
 
 ;;;; Faces
 
@@ -116,6 +130,11 @@ string specified in `dired-details-r-date-format' is included."
   "Face for dot file."
   :group 'dired-details-r-faces)
 
+(defface dired-details-r-ellipsis
+  '((t (:foreground "Gray50")))
+  "Face for ellipsis."
+  :group 'dired-details-r-faces)
+
 
 ;;;; Constants
 
@@ -129,7 +148,7 @@ string specified in `dired-details-r-date-format' is included."
    "\\(\\([0-9]+\\) \\)" ;9,10:size
    "\\(\\(.+[^ ]\\) +\\)")) ;11,12:time
 
-(defconst dired-details-r-parts
+(defconst dired-details-r-part-info-list
   ;; (name index subexp align-right)
   '((perms 0  2 nil)
     (links 1  4 t)
@@ -138,10 +157,10 @@ string specified in `dired-details-r-date-format' is included."
     (size  4 10 t)
     (time  5 12 nil))
   "Definitions of detail parts.")
-(defun dired-details-r-part-name (part) (nth 0 part))
-(defun dired-details-r-part-index (part) (nth 1 part))
-(defun dired-details-r-part-subexp (part) (nth 2 part))
-(defun dired-details-r-part-align-right (part) (nth 3 part))
+(defun dired-details-r-part-info-name (part-info) (nth 0 part-info))
+(defun dired-details-r-part-info-index (part-info) (nth 1 part-info))
+(defun dired-details-r-part-info-subexp (part-info) (nth 2 part-info))
+(defun dired-details-r-part-info-align-right (part-info) (nth 3 part-info))
 
 
 ;;;; Variables
@@ -157,6 +176,9 @@ string specified in `dired-details-r-date-format' is included."
 
 (defvar-local dired-details-r-overlay-method nil)
 
+(defvar dired-details-r-display-table nil)
+
+(defvar dired-details-r-ellipsis-width 3)
 
 ;;;; Minor Mode
 
@@ -176,6 +198,8 @@ string specified in `dired-details-r-date-format' is included."
   (cond
    ;; turn on
    (dired-details-r-mode
+    ;; Update ellipsis glyph
+    (dired-details-r-update-display-table)
     ;; local variables
     (setq-local dired-details-r-combination-name
                 (caar dired-details-r-combinations))
@@ -209,8 +233,10 @@ string specified in `dired-details-r-date-format' is included."
 
 (defun dired-details-r--wdired-mode-hook ()
   ;; If the display of dired-details-r interferes with wdired, turn it off.
-  (when (memq dired-details-r-overlay-method '(textprop textprop-and-overlay))
-    (dired-details-r-remove-all-appearance-changes)))
+  (if (memq dired-details-r-overlay-method '(textprop textprop-and-overlay))
+      (dired-details-r-remove-all-appearance-changes)
+    ;; Show truncated part of filenames
+    (remove-from-invisibility-spec '(dired-details-r-filename-overflow . t))))
 
 
 ;;;; Set face to string
@@ -225,10 +251,10 @@ string specified in `dired-details-r-date-format' is included."
     (propertize str 'face 'dired-details-r-today))
    (t str)))
 
-(defun dired-details-r-set-face-details (str part-strings)
+(defun dired-details-r-set-face-details (str parts)
   ;; gray dot file
   (cond
-   ((string-match "^\\." (car (last part-strings)))
+   ((string-match "^\\." (dired-details-r-filename-part-filename parts))
     (propertize str 'face 'dired-details-r-dot-file))
    (t str)))
 
@@ -302,42 +328,63 @@ string specified in `dired-details-r-date-format' is included."
 
 (defun dired-details-r-match-part-strings ()
   "Return strings of text matched by looking-back dired-details-r-regexp."
-  (append
-   (mapcar #'(lambda (part)
-               (match-string (dired-details-r-part-subexp part)))
-           dired-details-r-parts)
-   ;; last element is filename
+  (nconc
+   (mapcar #'(lambda (part-info)
+               (match-string (dired-details-r-part-info-subexp part-info)))
+           dired-details-r-part-info-list)
+   ;; last element
    (list
-    (concat
-     (buffer-substring (point) (point-at-eol))
-     ;; Add spaces of the same width as overlays that exists before filename.
-     ;;@todo Remove this hack.
-     (let ((width-before-filename
-            (dired-details-r-width-before-filename (point))))
-       (when (> width-before-filename 0)
-         (make-string width-before-filename ? )))))))
+    (list
+     ;; thumbnail, icon, etc.
+     (dired-details-r-width-before-filename (point))
+     ;; filename
+     (buffer-substring (point) (point-at-eol))))))
 
-(defun dired-details-r-max-part-widths (max-widths part-strings)
+;; Access last element
+
+(defun dired-details-r-filename-part (parts)
+  (car (last parts)))
+
+(defun dired-details-r-filename-part-filename (parts)
+  (cadr (dired-details-r-filename-part parts)))
+
+(defun dired-details-r-filename-part-width (parts)
+  (let ((part (dired-details-r-filename-part parts)))
+    (+ (car part)
+       (string-width (cadr part)))))
+
+(defun dired-details-r-max-part-widths (max-widths parts)
   "Calculate max width of parts and filename."
-  (let* ((result (or max-widths (make-list (length part-strings) 0)))
+  (let* ((result (or max-widths (make-list (length parts) 0)))
          (r result)
-         (s part-strings))
+         (s parts))
     (while (and r s)
       (setcar r (max
                  (car r)
-                 (string-width (car s)) ))
+                 (let ((spec (car s)))
+                   (cond
+                    ((listp spec)
+                     (cl-loop for elt in spec
+                              sum (cond
+                                   ((integerp elt) elt)
+                                   (t (string-width elt)))))
+                    ((integerp spec)
+                     spec)
+                    (t
+                     (string-width spec))))))
       (setq r (cdr r))
       (setq s (cdr s)))
     result))
 
-
-(defun dired-details-r-make-details-string (max-widths part-strings)
-  (let* ((filename-curr-width (string-width (car (last part-strings))))
+(defun dired-details-r-make-details-string (max-widths parts)
+  (let* ((filename-curr-width (dired-details-r-filename-part-width parts))
          (filename-max-width  (max
                                dired-details-r-min-filename-width
-                               (min (car (last max-widths))
+                               (min (dired-details-r-filename-part max-widths)
                                     dired-details-r-max-filename-width)))
-         (overflow (max 0 (- filename-curr-width filename-max-width))))
+         (overflow (if dired-details-r-truncate-filenames
+                       0
+                     (max 0 (- filename-curr-width filename-max-width)))))
     (concat
      ;; spaces after filename
      (make-string
@@ -346,22 +393,68 @@ string specified in `dired-details-r-date-format' is included."
      ;; details
      (mapconcat
       #'(lambda (part-name)
-          (let* ((part (assq part-name dired-details-r-parts))
-                 (index (dired-details-r-part-index part))
-                 (align-right (dired-details-r-part-align-right part))
+          (let* ((part-info (assq part-name dired-details-r-part-info-list))
+                 (index (dired-details-r-part-info-index part-info))
+                 (align-right (dired-details-r-part-info-align-right part-info))
                  (spaces-width (-  ;; (max width) - (current width)
                                 (nth index max-widths)
-                                (string-width (nth index part-strings))))
+                                (string-width (nth index parts))))
                  (overflow-delta (min spaces-width overflow))
                  (spaces-width (- spaces-width overflow-delta))
                  (spaces (make-string spaces-width ? ))
-                 (value (dired-details-r-set-face-part (nth index part-strings) part-name)))
+                 (value (dired-details-r-set-face-part (nth index parts)
+                                                       part-name)))
             (setq overflow (- overflow overflow-delta))
             (if align-right (concat spaces value) (concat value spaces))))
       dired-details-r-visible-parts " "))))
 
+(defun dired-details-r-set-text-properties-on-file-line (parts max-widths)
+  ;; put details overlay
+  (let ((details-str (dired-details-r-set-face-details
+                      (dired-details-r-make-details-string
+                       max-widths parts)
+                      parts)))
+    (dired-details-r-add-overlay (line-end-position) details-str))
+
+  ;; erase details before filename
+  (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
+        (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
+    (put-text-property details-beg details-end
+                       'invisible 'dired-details-r-detail))
+
+  ;; Truncate file name
+  (when dired-details-r-truncate-filenames
+    (let* ((filename-part-w
+            ;;NOTE: Include thumbnail and icon width
+            (dired-details-r-filename-part-width parts))
+           (filename-excess-w
+            (max 0 (- filename-part-w
+                      dired-details-r-max-filename-width))))
+      ;;(message "filename=%s w=%s excess=%s last=%s" (dired-details-r-filename-part-filename parts) filename-part-w filename-excess-w (dired-details-r-filename-part parts))
+      (when (> filename-excess-w 0)
+        (let* ((filename
+                (dired-details-r-filename-part-filename parts))
+               (filename-w
+                (string-width filename))
+               (truncated-filename-w
+                (- filename-w
+                   filename-excess-w
+                   dired-details-r-ellipsis-width))
+               (pos (point))
+               (pos-eol (line-end-position)))
+          (let ((curr-w 0))
+            (while (and (< pos pos-eol)
+                        (progn
+                          (cl-incf curr-w (char-width (char-after pos)))
+                          (<= curr-w truncated-filename-w)))
+              (cl-incf pos)))
+          (put-text-property pos pos-eol
+                             'invisible 'dired-details-r-filename-overflow))))))
+
 (defun dired-details-r-set-appearance-changes (beg end)
   "Set text properties and overlays on file information lines."
+
+  (add-to-invisibility-spec '(dired-details-r-filename-overflow . t))
 
   (when (and (< beg end)
              (not (eq dired-details-r-visible-parts 'disabled))
@@ -391,18 +484,9 @@ string specified in `dired-details-r-date-format' is included."
         (save-excursion
           (dolist (line lines)
             (goto-char (car line))
-            ;; put details overlay
-            (let* ((part-strings (cdr line))
-                   (details-str (dired-details-r-set-face-details
-                                 (dired-details-r-make-details-string
-                                  max-widths part-strings)
-                                 part-strings)))
-              (dired-details-r-add-overlay (line-end-position) details-str))
-
-            ;; erase details before filename
-            (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
-                  (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
-              (put-text-property details-beg details-end 'invisible 'dired-details-r-detail))))))))
+            (dired-details-r-set-text-properties-on-file-line
+             (cdr line)
+             max-widths)))))))
 
 (defun dired-details-r-remove-all-appearance-changes ()
   "Remove all invisible text properties and overlays for dired-details-r."
@@ -413,8 +497,29 @@ string specified in `dired-details-r-date-format' is included."
 
 (defun dired-details-r-update-invisibility-spec ()
   (if dired-details-r-mode
-      (add-to-invisibility-spec 'dired-details-r-detail)
-    (remove-from-invisibility-spec 'dired-details-r-detail)))
+      (progn
+        (add-to-invisibility-spec 'dired-details-r-detail)
+        (add-to-invisibility-spec '(dired-details-r-filename-overflow . t)))
+    (remove-from-invisibility-spec 'dired-details-r-detail)
+    (remove-from-invisibility-spec '(dired-details-r-filename-overflow . t))))
+
+(defun dired-details-r-update-display-table ()
+  (if (and (stringp dired-details-r-ellipsis)
+           (not (equal "" dired-details-r-ellipsis)))
+      (progn
+        (unless dired-details-r-display-table
+          (setq dired-details-r-display-table (make-display-table)))
+        (set-display-table-slot
+         dired-details-r-display-table 4
+         (vconcat (mapcar (lambda (c) (make-glyph-code
+                                       c 'dired-details-r-ellipsis))
+		          dired-details-r-ellipsis)))
+        (setq buffer-display-table
+              dired-details-r-display-table)
+        (setq dired-details-r-ellipsis-width
+              (string-width dired-details-r-ellipsis)))
+    (setq buffer-display-table nil)
+    (setq dired-details-r-ellipsis-width 3)))
 
 
 ;;;; Overlay Management
