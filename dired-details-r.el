@@ -25,7 +25,7 @@
 ;;; Usage:
 
 ;; (require 'dired-details-r)
-;; (dired-details-r-setup)
+;; (global-dired-details-r-mode)
 
 ;;; Code:
 
@@ -596,6 +596,21 @@ string specified in `dired-details-r-date-format' is included."
 (defun dired-details-r--dired-mode-hook ()
   (dired-details-r-mode))
 
+
+;;;; Global Mode
+
+
+;; NOTE: It is difficult to use define-globalized-minor-mode to
+;; precisely control the timing of layout processing.
+
+;;;###autoload
+(define-minor-mode global-dired-details-r-mode
+  "Global global-dired-details-r-mode."
+  :group 'dired
+  :global t
+  (if global-dired-details-r-mode
+      (dired-details-r-setup)
+    (dired-details-r-uninstall)))
 
 
 (provide 'dired-details-r)

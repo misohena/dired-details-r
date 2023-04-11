@@ -22,7 +22,7 @@ Hide all:
 
 #+BEGIN_SRC elisp
 (require 'dired-details-r)
-(dired-details-r-setup)
+(global-dired-details-r-mode)
 #+END_SRC
 
 ** Key
