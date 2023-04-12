@@ -55,9 +55,12 @@ layout of the entire buffer will not change any further."
 
 (defcustom dired-details-r-combinations
   '((size-time  . (size time))
+    ;;(time-size  . (time size)) ;; Which do you prefer?
     (no-details . ())
     (disabled   . disabled)
-    (all        . (size time perms links user group)))
+    (all        . (size time perms links user group))
+    ;;(all        . (time size perms links user group))
+    )
   "A list of combinations of file detail information to display.
 
  The combination is rotated by calling
