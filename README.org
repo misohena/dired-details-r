@@ -1,8 +1,12 @@
 * dired-details-r.el - Show Dired Details Right
+
+This Emacs Lisp displays detailed file information to the right of the filename in Dired. However, subsequent improvements have made it possible to display it on the left side and on both sides.
+
 ** Screenshots
 
-Show all:
+[[file:./dired-details-r-anime.gif]]
 
+Show all:
 
 [[file:./dired-details-r-1.png]]
 
@@ -15,59 +19,58 @@ Hide all:
 [[file:./dired-details-r-3.png]]
 
 ** Requirements
-- Emacs 24.4
+- Emacs 27.1
 
 ** Usage
-[[file:./dired-details-r.el]]
+Put [[file:dired-details-r.el]] under load-path.
+
+In your init.el write:
 
 #+BEGIN_SRC elisp
-(require 'dired-details-r)
-(global-dired-details-r-mode)
+(with-eval-after-load "dired"
+  (require 'dired-details-r)
+  (global-dired-details-r-mode))
 #+END_SRC
 
-** Key
+** Key Bindings
 
-- "(" : Rotate details combination
+- "(" : Rotate combination
 
 ** Customize
-
+*** Combination of File Information to Display
 Details combination list:
 
 #+BEGIN_SRC elisp
 (setq dired-details-r-combinations
-  '((size-time  . (size time))
-    (no-details . ())
-    (disabled   . disabled)
-    (all        . (size time perms links user group))))
+      '((size-time  . (size time))
+        ;;(time-size  . (time size)) ;; Which do you prefer?
+        (no-details . ())
+        (disabled   . disabled)
+        (all        . (size time perms links user group))
+        (left-right . (time size filename perms links user group))
+        (left       . (time size filename))))
 #+END_SRC
 
-Filename width:
+*** Display Width
 
-#+BEGIN_SRC elisp
-(setq dired-details-r-min-filename-width 40)
-(setq dired-details-r-max-filename-width 50)
-#+END_SRC
+- dired-details-r-max-width
+- dired-details-r-min-filename-width
+- dired-details-r-max-filename-width
 
-Faces:
-- dired-details-r-today
+*** Truncate
+
+- dired-details-r-truncate-lines
+- dired-details-r-truncate-filenames
+- dired-details-r-ellipsis
+
+*** Faces
+
+- dired-details-r-today (dired-details-r-date-format)
 - dired-details-r-dot-file
 
-#+BEGIN_SRC elisp
-(defun dired-details-r-set-face-part (str part-name)
-  (cond
-   ;; highlight today
-   ((and (eq part-name 'time)
-         (string-match (format-time-string "%b %e" (current-time)) str))
-    (propertize str 'face 'dired-details-r-today))
-   (t str)))
+*** Thumbnail, Icon Support
 
-(defun dired-details-r-set-face-details (str part-strings)
-  ;; gray dot file
-  (cond
-   ((string-match "^\\." (car (last part-strings)))
-    (propertize str 'face 'dired-details-r-dot-file))
-   (t str)))
-#+END_SRC
+- dired-details-r-consider-overlays-before-filename-p
 
 ** Related Projects
 - [[https://github.com/misohena/dired-details-s/][dired-details-s.el]] :: Hide dired details separately
