@@ -380,7 +380,59 @@ string specified in `dired-details-r-date-format' is included."
       (setq s (cdr s)))
     result))
 
-(defun dired-details-r-make-details-string (max-widths parts)
+(defun dired-details-r-filename-extension-position-at ()
+  (when (looking-at "[^\n]+\\(\\.[^./\n]+\\)")
+    (match-beginning 1)))
+
+(defun dired-details-r-truncate-filename-at (parts)
+  (let* ((filename-part-w ;;NOTE: Include thumbnail and icon width
+          (dired-details-r-filename-part-width parts))
+         (filename-excess-w
+          (max 0 (- filename-part-w
+                    dired-details-r-max-filename-width))))
+    (when (> filename-excess-w 0)
+      (let* ((filename
+              (dired-details-r-filename-part-filename parts))
+             (filename-w
+              (string-width filename))
+             (beg-filename
+              (point))
+             (end-filename
+              (line-end-position))
+             (beg-extension
+              (dired-details-r-filename-extension-position-at))
+             (before-ext-w
+              (when beg-extension
+                (string-width (buffer-substring beg-filename
+                                                beg-extension))))
+             (truncate-before-ext-p
+              (and beg-extension
+                   (>  before-ext-w
+                       (+ 4
+                          filename-excess-w
+                          dired-details-r-ellipsis-width))))
+             (end-truncated
+              (if truncate-before-ext-p beg-extension end-filename))
+             (truncated-w-ideal
+              (if truncate-before-ext-p
+                  (- before-ext-w filename-excess-w dired-details-r-ellipsis-width)
+                (- filename-w filename-excess-w dired-details-r-ellipsis-width)))
+             (pos beg-filename)
+             (truncated-w 0))
+        (while (and (< pos end-truncated)
+                    (let ((char-w (char-width (char-after pos))))
+                      (if (> (+ truncated-w char-w) truncated-w-ideal)
+                          nil
+                        (cl-incf truncated-w char-w)
+                        (cl-incf pos)
+                        t))))
+        (put-text-property pos end-truncated
+                           'invisible 'dired-details-r-filename-overflow)
+        (- truncated-w-ideal truncated-w)))))
+
+(defun dired-details-r-make-details-string (max-widths
+                                            parts
+                                            filename-truncated-shortage)
   (let* ((filename-curr-width (dired-details-r-filename-part-width parts))
          (filename-max-width  (max
                                dired-details-r-min-filename-width
@@ -392,7 +444,9 @@ string specified in `dired-details-r-date-format' is included."
     (concat
      ;; spaces after filename
      (make-string
-      (max 1 (- filename-max-width filename-curr-width -1))
+      (+
+       (or filename-truncated-shortage 0)
+       (max 1 (- filename-max-width filename-curr-width -1)))
       ? )
      ;; details
      (mapconcat
@@ -413,49 +467,26 @@ string specified in `dired-details-r-date-format' is included."
       dired-details-r-visible-parts " "))))
 
 (defun dired-details-r-set-text-properties-on-file-line (parts max-widths)
-  ;; put details overlay
-  (let ((details-str (dired-details-r-set-face-details
-                      (dired-details-r-make-details-string
-                       max-widths parts)
-                      parts)))
-    (dired-details-r-add-overlay (line-end-position) details-str))
+  (let (;; Truncate file name
+        (filename-truncated-shortage
+         (when (and dired-details-r-truncate-filenames
+                    ;; Don't truncate if all details are hidden
+                    dired-details-r-visible-parts)
+           (dired-details-r-truncate-filename-at parts))))
 
-  ;; erase details before filename
-  (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
-        (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
-    (put-text-property details-beg details-end
-                       'invisible 'dired-details-r-detail))
+    ;; put details overlay
+    (let ((details-str (dired-details-r-set-face-details
+                        (dired-details-r-make-details-string
+                         max-widths parts
+                         filename-truncated-shortage)
+                        parts)))
+      (dired-details-r-add-overlay (line-end-position) details-str))
 
-  ;; Truncate file name
-  (when (and dired-details-r-truncate-filenames
-             ;; Don't truncate if all details are hidden
-             dired-details-r-visible-parts)
-    (let* ((filename-part-w
-            ;;NOTE: Include thumbnail and icon width
-            (dired-details-r-filename-part-width parts))
-           (filename-excess-w
-            (max 0 (- filename-part-w
-                      dired-details-r-max-filename-width))))
-      ;;(message "filename=%s w=%s excess=%s last=%s" (dired-details-r-filename-part-filename parts) filename-part-w filename-excess-w (dired-details-r-filename-part parts))
-      (when (> filename-excess-w 0)
-        (let* ((filename
-                (dired-details-r-filename-part-filename parts))
-               (filename-w
-                (string-width filename))
-               (truncated-filename-w
-                (- filename-w
-                   filename-excess-w
-                   dired-details-r-ellipsis-width))
-               (pos (point))
-               (pos-eol (line-end-position)))
-          (let ((curr-w 0))
-            (while (and (< pos pos-eol)
-                        (progn
-                          (cl-incf curr-w (char-width (char-after pos)))
-                          (<= curr-w truncated-filename-w)))
-              (cl-incf pos)))
-          (put-text-property pos pos-eol
-                             'invisible 'dired-details-r-filename-overflow))))))
+    ;; erase details before filename
+    (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
+          (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
+      (put-text-property details-beg details-end
+                         'invisible 'dired-details-r-detail))))
 
 (defun dired-details-r-set-appearance-changes (beg end)
   "Set text properties and overlays on file information lines."
