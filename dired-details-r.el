@@ -378,6 +378,8 @@ dired-details-r-regexp and filename part on current line."
     (+ (car part)
        (string-width (cadr part)))))
 
+;; Layout Calculation
+
 (defun dired-details-r-max-part-widths (max-widths parts)
   "Calculate max width of parts and filename."
   (let* ((result (or max-widths (make-list (length parts) 0)))
@@ -436,6 +438,8 @@ dired-details-r-regexp and filename part on current line."
 
 (defun dired-details-r-truncate-filename-at (parts
                                              max-filename-width)
+  "Truncate the width of the filename part of the current line to
+less than MAX-FILENAME-WIDTH."
   (let* ((filename-part-w ;;NOTE: Include thumbnail and icon width
           (dired-details-r-filename-part-width parts))
          (filename-excess-w
@@ -458,7 +462,7 @@ dired-details-r-regexp and filename part on current line."
              (truncate-before-ext-p
               (and beg-extension
                    (>  before-ext-w
-                       (+ 4
+                       (+ 4 ;; Minimum length before ellipsis (Avoid: ...ext)
                           filename-excess-w
                           dired-details-r-ellipsis-width))))
              (end-truncated
