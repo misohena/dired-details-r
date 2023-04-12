@@ -350,8 +350,9 @@ string specified in `dired-details-r-date-format' is included."
         prev-chars)
     0))
 
-(defun dired-details-r-match-part-strings ()
-  "Return strings of text matched by looking-back dired-details-r-regexp."
+(defun dired-details-r-collect-parts ()
+  "Return strings of text matched by looking-back
+dired-details-r-regexp and filename part on current line."
   (nconc
    (mapcar #'(lambda (part-info)
                (match-string (dired-details-r-part-info-subexp part-info)))
@@ -559,7 +560,7 @@ string specified in `dired-details-r-date-format' is included."
       (dired-details-r-do-filenames beg end
         (push (cons
                (point)
-               (dired-details-r-match-part-strings))
+               (dired-details-r-collect-parts))
               lines))
       (setq lines (nreverse lines))
 
