@@ -40,18 +40,38 @@
   "Display file details to the right of the file name in dired."
   :group 'dired)
 
+(defcustom dired-details-r-max-width 'dired-details-r-max-width-auto
+  "The maximum width to use for file names and details.
+
+`Auto' (dired-details-r-max-width-auto) means the current window
+width minus 3.
+
+Whatever you specify, the maximum width cannot be less than the
+sum of `dired-details-r-min-filename-width' and the total detail
+width."
+  :group 'dired-details-r
+  :type '(choice (const :tag "Auto" dired-details-r-max-width-auto)
+                 (const :tag "No Limit" 10000)
+                 (integer :tag "Columns" 77)
+                 (function :tag "Function")))
+
 (defcustom dired-details-r-min-filename-width 40
   "Width always reserved for file names.
 
 The area for displaying file names is never less than this width."
   :group 'dired-details-r :type 'integer)
 
-(defcustom dired-details-r-max-filename-width 52
+(defcustom dired-details-r-max-filename-width 'auto
   "The maximum width to always reserve for file names in the entire buffer.
 
 Even if there is a file name whose length exceeds this width, the
-layout of the entire buffer will not change any further."
-  :group 'dired-details-r :type 'integer)
+layout of the entire buffer will not change any further.
+
+Symbol `auto' means calculate from details total width and
+`dired-details-r-max-width'."
+  :group 'dired-details-r
+  :type '(choice (integer :tag "Columns" 52)
+                 (const :tag "Auto" auto)))
 
 (defcustom dired-details-r-combinations
   '((size-time  . (size time))
@@ -380,16 +400,45 @@ string specified in `dired-details-r-date-format' is included."
       (setq s (cdr s)))
     result))
 
+(defun dired-details-r-max-width-auto ()
+  (- (window-width) 3))
+
+(defun dired-details-r-max-width ()
+  (pcase dired-details-r-max-width
+    ((and (pred integerp) w) w)
+    ((and (pred functionp) f) (funcall f))
+    (_ 74)))
+
+(defun dired-details-r-details-total-width (max-widths)
+  (if (null dired-details-r-visible-parts)
+      0
+    (+
+     (cl-loop for part-name in dired-details-r-visible-parts
+              for part-info = (assq part-name dired-details-r-part-info-list)
+              for index = (dired-details-r-part-info-index part-info)
+              sum (nth index max-widths))
+     (1- (length dired-details-r-visible-parts)))))
+
+(defun dired-details-r-max-filename-width (max-widths)
+  (pcase dired-details-r-max-filename-width
+    ((and (pred integerp) w) w)
+    (_ ;;'auto
+     (max
+      dired-details-r-min-filename-width
+      (- (dired-details-r-max-width)
+         (dired-details-r-details-total-width max-widths)
+         1))))) ;;space between filename and details
+
 (defun dired-details-r-filename-extension-position-at ()
   (when (looking-at "[^\n]+\\(\\.[^./\n]+\\)")
     (match-beginning 1)))
 
-(defun dired-details-r-truncate-filename-at (parts)
+(defun dired-details-r-truncate-filename-at (parts
+                                             max-filename-width)
   (let* ((filename-part-w ;;NOTE: Include thumbnail and icon width
           (dired-details-r-filename-part-width parts))
          (filename-excess-w
-          (max 0 (- filename-part-w
-                    dired-details-r-max-filename-width))))
+          (max 0 (- filename-part-w max-filename-width))))
     (when (> filename-excess-w 0)
       (let* ((filename
               (dired-details-r-filename-part-filename parts))
@@ -432,12 +481,13 @@ string specified in `dired-details-r-date-format' is included."
 
 (defun dired-details-r-make-details-string (max-widths
                                             parts
+                                            max-filename-width
                                             filename-truncated-shortage)
   (let* ((filename-curr-width (dired-details-r-filename-part-width parts))
          (filename-max-width  (max
                                dired-details-r-min-filename-width
                                (min (dired-details-r-filename-part max-widths)
-                                    dired-details-r-max-filename-width)))
+                                    max-filename-width)))
          (overflow (if dired-details-r-truncate-filenames
                        0
                      (max 0 (- filename-curr-width filename-max-width)))))
@@ -467,17 +517,20 @@ string specified in `dired-details-r-date-format' is included."
       dired-details-r-visible-parts " "))))
 
 (defun dired-details-r-set-text-properties-on-file-line (parts max-widths)
-  (let (;; Truncate file name
-        (filename-truncated-shortage
-         (when (and dired-details-r-truncate-filenames
-                    ;; Don't truncate if all details are hidden
-                    dired-details-r-visible-parts)
-           (dired-details-r-truncate-filename-at parts))))
+  (let* ((max-filename-width
+          (dired-details-r-max-filename-width max-widths))
+         ;; Truncate file name
+         (filename-truncated-shortage
+          (when (and dired-details-r-truncate-filenames
+                     ;; Don't truncate if all details are hidden
+                     dired-details-r-visible-parts)
+            (dired-details-r-truncate-filename-at parts max-filename-width))))
 
     ;; put details overlay
     (let ((details-str (dired-details-r-set-face-details
                         (dired-details-r-make-details-string
                          max-widths parts
+                         max-filename-width
                          filename-truncated-shortage)
                         parts)))
       (dired-details-r-add-overlay (line-end-position) details-str))
