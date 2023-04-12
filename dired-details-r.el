@@ -103,7 +103,7 @@ Set to nil if too slow or unstable."
   :group 'dired-details-r
   :type 'boolean)
 
-(defcustom dired-details-r-ellipsis nil
+(defcustom dired-details-r-ellipsis ".."
   "The ellipsis to use in the Dired buffer.
 
 When nil, just use the standard three dots.  When a non-empty string,
