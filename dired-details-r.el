@@ -55,7 +55,7 @@ width."
                  (integer :tag "Columns" 77)
                  (function :tag "Function")))
 
-(defcustom dired-details-r-min-filename-width 40
+(defcustom dired-details-r-min-filename-width 28
   "Width always reserved for file names.
 
 The area for displaying file names is never less than this width."
@@ -79,9 +79,14 @@ Symbol `auto' means calculate from details total width and
     (no-details . ())
     (disabled   . disabled)
     (all        . (size time perms links user group))
-    ;;(all        . (time size perms links user group))
+    (left-right . (time size filename perms links user group))
+    (left       . (time size filename))
     )
   "A list of combinations of file detail information to display.
+
+The symbol `filename' can be specified only once. If not
+specified, all parts will appear to the right of the file
+name (for compatibility).
 
  The combination is rotated by calling
  `dired-details-r-toggle-combination' command."
@@ -378,6 +383,29 @@ dired-details-r-regexp and filename part on current line."
     (+ (car part)
        (string-width (cadr part)))))
 
+;; Divide Visible Parts
+
+(defun dired-details-r-visible-parts-left ()
+  (seq-take
+   dired-details-r-visible-parts
+   (cl-loop for part-name in dired-details-r-visible-parts
+            for count from 0
+            when (eq part-name 'filename) return count
+            finally return 0)))
+
+(defun dired-details-r-visible-parts-right ()
+  (if-let ((r (memq 'filename dired-details-r-visible-parts)))
+      (cdr r)
+    dired-details-r-visible-parts))
+
+;; TEST
+;; (setq dired-details-r-visible-parts '(size filename time))
+;; (setq dired-details-r-visible-parts '(filename time))
+;; (setq dired-details-r-visible-parts '(size filename))
+;; (setq dired-details-r-visible-parts '(size time))
+;; (dired-details-r-visible-parts-left)
+;; (dired-details-r-visible-parts-right)
+
 ;; Layout Calculation
 
 (defun dired-details-r-max-part-widths (max-widths parts)
@@ -412,24 +440,28 @@ dired-details-r-regexp and filename part on current line."
     ((and (pred functionp) f) (funcall f))
     (_ 74)))
 
-(defun dired-details-r-details-total-width (max-widths)
-  (if (null dired-details-r-visible-parts)
+(defun dired-details-r-details-total-width (max-widths part-names)
+  (if (null part-names)
       0
     (+
-     (cl-loop for part-name in dired-details-r-visible-parts
+     (cl-loop for part-name in part-names
               for part-info = (assq part-name dired-details-r-part-info-list)
               for index = (dired-details-r-part-info-index part-info)
+              when index
               sum (nth index max-widths))
-     (1- (length dired-details-r-visible-parts)))))
+     (1- (length part-names)))))
 
-(defun dired-details-r-max-filename-width (max-widths)
+(defun dired-details-r-max-filename-width (max-widths
+                                           visible-parts-left
+                                           visible-parts-right)
   (pcase dired-details-r-max-filename-width
     ((and (pred integerp) w) w)
     (_ ;;'auto
      (max
       dired-details-r-min-filename-width
       (- (dired-details-r-max-width)
-         (dired-details-r-details-total-width max-widths)
+         (dired-details-r-details-total-width max-widths visible-parts-left)
+         (dired-details-r-details-total-width max-widths visible-parts-right)
          1))))) ;;space between filename and details
 
 (defun dired-details-r-filename-extension-position-at ()
@@ -486,16 +518,42 @@ less than MAX-FILENAME-WIDTH."
 
 (defun dired-details-r-make-details-string (max-widths
                                             parts
-                                            max-filename-width
-                                            filename-truncated-shortage)
+                                            visible-part-names
+                                            left-overflow)
+  (mapconcat
+   #'(lambda (part-name)
+       (let ((part-info (assq part-name dired-details-r-part-info-list)))
+         (when part-info
+           (let* ((index (dired-details-r-part-info-index part-info))
+                  (align-right (dired-details-r-part-info-align-right
+                                part-info))
+                  (spaces-width (-  ;; (max width) - (current width)
+                                 (nth index max-widths)
+                                 (string-width (nth index parts))))
+                  (overflow-delta (min spaces-width left-overflow))
+                  (spaces-width (- spaces-width overflow-delta))
+                  (spaces (make-string spaces-width ? ))
+                  (value (dired-details-r-set-face-part (nth index parts)
+                                                        part-name)))
+             (cl-decf left-overflow overflow-delta)
+             (if align-right (concat spaces value) (concat value spaces))))))
+   visible-part-names " "))
+
+(defun dired-details-r-make-details-string-for-right
+    (max-widths
+     parts
+     visible-parts-right
+     max-filename-width
+     filename-truncated-shortage)
   (let* ((filename-curr-width (dired-details-r-filename-part-width parts))
          (filename-max-width  (max
                                dired-details-r-min-filename-width
                                (min (dired-details-r-filename-part max-widths)
                                     max-filename-width)))
-         (overflow (if dired-details-r-truncate-filenames
-                       0
-                     (max 0 (- filename-curr-width filename-max-width)))))
+         (filename-overflow (if dired-details-r-truncate-filenames
+                                0
+                              (max 0 (- filename-curr-width
+                                        filename-max-width)))))
     (concat
      ;; spaces after filename
      (make-string
@@ -504,47 +562,53 @@ less than MAX-FILENAME-WIDTH."
        (max 1 (- filename-max-width filename-curr-width -1)))
       ? )
      ;; details
-     (mapconcat
-      #'(lambda (part-name)
-          (let* ((part-info (assq part-name dired-details-r-part-info-list))
-                 (index (dired-details-r-part-info-index part-info))
-                 (align-right (dired-details-r-part-info-align-right part-info))
-                 (spaces-width (-  ;; (max width) - (current width)
-                                (nth index max-widths)
-                                (string-width (nth index parts))))
-                 (overflow-delta (min spaces-width overflow))
-                 (spaces-width (- spaces-width overflow-delta))
-                 (spaces (make-string spaces-width ? ))
-                 (value (dired-details-r-set-face-part (nth index parts)
-                                                       part-name)))
-            (setq overflow (- overflow overflow-delta))
-            (if align-right (concat spaces value) (concat value spaces))))
-      dired-details-r-visible-parts " "))))
+     (dired-details-r-make-details-string max-widths
+                                          parts
+                                          visible-parts-right
+                                          filename-overflow))))
 
-(defun dired-details-r-set-text-properties-on-file-line (parts max-widths)
+(defun dired-details-r-set-text-properties-on-file-line (parts
+                                                         max-widths
+                                                         visible-parts-left
+                                                         visible-parts-right)
+  ;; Erase details before filename
+  (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
+        (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
+    (put-text-property details-beg details-end
+                       'invisible 'dired-details-r-detail))
+
+  ;; Put details on left
+  (when visible-parts-left
+    (dired-details-r-add-overlay-left
+     (point)
+     (dired-details-r-set-face-details
+      (dired-details-r-make-details-string max-widths parts
+                                           visible-parts-left 0)
+      parts)))
+
+  ;; Filename and details on right
   (let* ((max-filename-width
-          (dired-details-r-max-filename-width max-widths))
+          (dired-details-r-max-filename-width max-widths
+                                              visible-parts-left
+                                              visible-parts-right))
          ;; Truncate file name
          (filename-truncated-shortage
           (when (and dired-details-r-truncate-filenames
-                     ;; Don't truncate if all details are hidden
-                     dired-details-r-visible-parts)
+                     ;; Don't truncate if details are not shown on right
+                     visible-parts-right)
             (dired-details-r-truncate-filename-at parts max-filename-width))))
 
-    ;; put details overlay
-    (let ((details-str (dired-details-r-set-face-details
-                        (dired-details-r-make-details-string
-                         max-widths parts
-                         max-filename-width
-                         filename-truncated-shortage)
-                        parts)))
-      (dired-details-r-add-overlay (line-end-position) details-str))
-
-    ;; erase details before filename
-    (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
-          (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
-      (put-text-property details-beg details-end
-                         'invisible 'dired-details-r-detail))))
+    ;; Put details on right
+    (when visible-parts-right
+      (dired-details-r-add-overlay-right
+       (line-end-position)
+       (dired-details-r-set-face-details
+        (dired-details-r-make-details-string-for-right
+         max-widths parts
+         visible-parts-right
+         max-filename-width
+         filename-truncated-shortage)
+        parts)))))
 
 (defun dired-details-r-set-appearance-changes (beg end)
   "Set text properties and overlays on file information lines."
@@ -558,6 +622,8 @@ less than MAX-FILENAME-WIDTH."
     (dired-details-r-update-overlay-method beg end)
 
     (let ((max-widths dired-details-r-max-widths)
+          (visible-parts-left (dired-details-r-visible-parts-left))
+          (visible-parts-right (dired-details-r-visible-parts-right))
           lines)
 
       ;; Cache parts (Avoid computing length of parts twice)
@@ -581,7 +647,9 @@ less than MAX-FILENAME-WIDTH."
             (goto-char (car line))
             (dired-details-r-set-text-properties-on-file-line
              (cdr line)
-             max-widths)))))))
+             max-widths
+             visible-parts-left
+             visible-parts-right)))))))
 
 (defun dired-details-r-remove-all-appearance-changes ()
   "Remove all invisible text properties and overlays for dired-details-r."
@@ -645,7 +713,7 @@ less than MAX-FILENAME-WIDTH."
   )
 
 
-(defun dired-details-r-add-overlay (eol details-str)
+(defun dired-details-r-add-overlay-right (eol details-str)
   ;; Replacing \n with the display property makes previous-line very slow.
   ;; (When there are thousands of lines)
 
@@ -681,6 +749,21 @@ less than MAX-FILENAME-WIDTH."
        (overlay-put ovl 'evaporate t)
        (overlay-put ovl 'before-string (propertize details-str 'cursor 1))))))
 
+(defun dired-details-r-add-overlay-left (bof details-str)
+  "Show DETAILS-STR on left of BOF (beginning of filename) !!
+dired-details-l !?"
+  (pcase dired-details-r-overlay-method
+    ((or 'textprop 'textprop-and-overlay)
+     (put-text-property (- bof 2) (- bof 1) 'display details-str)
+     (put-text-property (- bof 2) (- bof 1) 'invisible nil))
+
+    ;; Slower than using text property.
+    ('overlay
+     (let ((ovl (make-overlay (1- bof) bof nil t)))
+       (overlay-put ovl 'dired-details-r t)
+       (overlay-put ovl 'evaporate t)
+       (overlay-put ovl 'before-string (propertize details-str 'cursor 1))))))
+
 (defun dired-details-r-remove-all-overlays ()
   ;;(message "on dired-details-r-remove-all-overlays ovmethod=%s" dired-details-r-overlay-method)
   ;; Remove display text property at the last character of lines
@@ -690,8 +773,10 @@ less than MAX-FILENAME-WIDTH."
         (save-restriction
           (widen)
           (dired-details-r-do-filenames (point-min) (point-max)
-            (let ((eol (line-end-position)))
-              (remove-text-properties (1- eol) eol '(display))))))))
+            (let ((bof (point)) ;;beginning of filename
+                  (eol (line-end-position)))
+              (remove-text-properties (1- bof) bof '(display)) ;;left
+              (remove-text-properties (1- eol) eol '(display)))))))) ;;right
 
   ;; Remove overlays
   (when (memq dired-details-r-overlay-method '(overlay textprop-and-overlay))
