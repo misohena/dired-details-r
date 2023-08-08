@@ -368,7 +368,7 @@ dired-details-r-regexp and filename part on current line."
      ;; thumbnail, icon, etc.
      (dired-details-r-width-before-filename (point))
      ;; filename
-     (buffer-substring (point) (point-at-eol))))))
+     (buffer-substring (point) (line-end-position))))))
 
 ;; Access last element
 
