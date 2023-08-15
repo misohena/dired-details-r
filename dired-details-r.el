@@ -316,22 +316,29 @@ string specified in `dired-details-r-date-format' is included."
 
 (defun dired-details-r-text-pixel-width (from to)
   ;; See `shr-pixel-column' technic.
-  (let ((old-wpb (window-prev-buffers))
-        (bol (line-beginning-position)))
-    (prog1
-        (if (eq (window-buffer) (current-buffer))
-            (- (car (window-text-pixel-size nil bol to 100000))
-               (car (window-text-pixel-size nil bol from 100000)))
-          (save-window-excursion
-            (set-window-dedicated-p nil nil)
-            (set-window-buffer nil (current-buffer))
-            (- (car (window-text-pixel-size nil bol to 100000))
-               (car (window-text-pixel-size nil bol from 100000)))))
-      ;; window-text-pixel-size modifies window-prev-buffers!
-      ;; Then the first switch-to-buffer will move the point to the
-      ;; location investigated here.
-      ;; So prevent it.
-      (set-window-prev-buffers nil old-wpb))))
+  (let ((bol (line-beginning-position)))
+    (if (eq (window-buffer) (current-buffer))
+        (- (car (window-text-pixel-size nil bol to 100000))
+           (car (window-text-pixel-size nil bol from 100000)))
+      (let ((old-wnb (window-next-buffers))
+            (old-wpb (window-prev-buffers)))
+        (prog1
+            (save-window-excursion
+              (set-window-dedicated-p nil nil)
+              (set-window-buffer nil (current-buffer))
+              (- (car (window-text-pixel-size nil bol to 100000))
+                 (car (window-text-pixel-size nil bol from 100000))))
+          ;; `set-window-buffer' modifies window-prev-buffers!(*)
+          ;; Then the first `switch-to-buffer' will move the point to the
+          ;; location investigated here.
+          ;; So prevent it.
+          ;; * (`set-window-buffer' -> `record-window-buffer'
+          ;;  -> `push-window-buffer-onto-prev' -> `set-window-prev-buffers')
+          (set-window-next-buffers nil old-wnb)
+          (set-window-prev-buffers nil old-wpb)
+          ;; @todo (run-hooks 'buffer-list-update-hook)?
+          ;;       See `record-window-buffer'.
+          )))))
 
 (defun dired-details-r-width-before-filename (beginning-of-filename)
   "Return width of objects preceding file name."
