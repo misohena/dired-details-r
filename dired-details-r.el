@@ -200,7 +200,13 @@ string specified in `dired-details-r-date-format' is included."
 (defvar-local dired-details-r-visible-parts nil
   "Current visible parts list.")
 
-(defvar-local dired-details-r-max-widths nil)
+(defvar-local dired-details-r-max-widths nil
+  "The maximum width of each part of the file details measured
+ the last time the entire buffer was updated.")
+
+(defvar-local dired-details-r-filename-column-width nil
+  "The width allocated for displaying filenames the last time the
+entire buffer was updated.")
 
 (defvar-local dired-details-r-overlay-method nil)
 
@@ -244,7 +250,7 @@ string specified in `dired-details-r-date-format' is included."
 
     ;; change appearance
     (let ((inhibit-read-only t))
-      (dired-details-r-set-appearance-changes (point-min) (point-max)))
+      (dired-details-r-set-all-appearance-changes))
 
     ;; truncate lines
     (when dired-details-r-truncate-lines
@@ -483,13 +489,13 @@ dired-details-r-regexp and filename part on current line."
     (match-beginning 1)))
 
 (defun dired-details-r-truncate-filename-at (parts
-                                             max-filename-width)
+                                             filename-column-width)
   "Truncate the width of the filename part of the current line to
-less than MAX-FILENAME-WIDTH."
+less than FILENAME-COLUMN-WIDTH."
   (let* ((filename-part-w ;;NOTE: Include thumbnail and icon width
           (dired-details-r-filename-part-width parts))
          (filename-excess-w
-          (max 0 (- filename-part-w max-filename-width))))
+          (max 0 (- filename-part-w filename-column-width))))
     (when (> filename-excess-w 0)
       (let* ((filename
               (dired-details-r-filename-part-filename parts))
@@ -557,23 +563,19 @@ less than MAX-FILENAME-WIDTH."
     (max-widths
      parts
      visible-parts-right
-     max-filename-width
+     filename-column-width
      filename-truncated-shortage)
   (let* ((filename-curr-width (dired-details-r-filename-part-width parts))
-         (filename-max-width  (max
-                               dired-details-r-min-filename-width
-                               (min (dired-details-r-filename-part max-widths)
-                                    max-filename-width)))
          (filename-overflow (if dired-details-r-truncate-filenames
                                 0
                               (max 0 (- filename-curr-width
-                                        filename-max-width)))))
+                                        filename-column-width)))))
     (concat
      ;; spaces after filename
      (make-string
       (+
        (or filename-truncated-shortage 0)
-       (max 1 (- filename-max-width filename-curr-width -1)))
+       (max 1 (- filename-column-width filename-curr-width -1)))
       ? )
      ;; details
      (dired-details-r-make-details-string max-widths
@@ -581,10 +583,9 @@ less than MAX-FILENAME-WIDTH."
                                           visible-parts-right
                                           filename-overflow))))
 
-(defun dired-details-r-set-text-properties-on-file-line (parts
-                                                         max-widths
-                                                         visible-parts-left
-                                                         visible-parts-right)
+(defun dired-details-r-set-text-properties-on-file-line
+    (parts
+     max-widths visible-parts-left visible-parts-right filename-column-width)
   ;; Erase details before filename
   (let ((details-beg (+ (line-beginning-position) 1)) ;; include second whitespace
         (details-end (1- (point)))) ;; keep whitespace after details. if not, wdired will not work properly
@@ -601,16 +602,12 @@ less than MAX-FILENAME-WIDTH."
       parts)))
 
   ;; Filename and details on right
-  (let* ((max-filename-width
-          (dired-details-r-max-filename-width max-widths
-                                              visible-parts-left
-                                              visible-parts-right))
-         ;; Truncate file name
+  (let* (;; Truncate file name
          (filename-truncated-shortage
           (when (and dired-details-r-truncate-filenames
                      ;; Don't truncate if details are not shown on right
                      visible-parts-right)
-            (dired-details-r-truncate-filename-at parts max-filename-width))))
+            (dired-details-r-truncate-filename-at parts filename-column-width))))
 
     ;; Put details on right
     (when visible-parts-right
@@ -618,59 +615,131 @@ less than MAX-FILENAME-WIDTH."
        (line-end-position)
        (dired-details-r-set-face-details
         (dired-details-r-make-details-string-for-right
-         max-widths parts
-         visible-parts-right
-         max-filename-width
+         max-widths parts visible-parts-right filename-column-width
          filename-truncated-shortage)
         parts)))))
 
-(defun dired-details-r-set-appearance-changes (beg end)
-  "Set text properties and overlays on file information lines."
+(defun dired-details-r-set-text-properties-for-each-file
+    (lines
+     max-widths visible-parts-left visible-parts-right filename-column-width)
+  "LINES is the list obtained by `dired-details-r-get-file-lines'.
 
+MAX-WIDTHS is the list obtained by
+`dired-details-r-calculate-max-widths'.
+
+visible-parts-left is the list obtained by
+`dired-details-r-visible-parts-left'.
+
+visible-parts-right is the list obtained by
+`dired-details-r-visible-parts-right'."
+  (with-silent-modifications
+    (save-excursion
+      (dolist (line lines)
+        (goto-char (car line))
+        (dired-details-r-set-text-properties-on-file-line
+         (cdr line)
+         max-widths
+         visible-parts-left
+         visible-parts-right
+         filename-column-width)))))
+
+(defun dired-details-r-get-file-lines (beg end)
+  (let (lines)
+    (dired-details-r-do-filenames beg end
+      (push (cons (point) (dired-details-r-collect-parts))
+            lines))
+    (nreverse lines)))
+
+(defun dired-details-r-calculate-max-widths (lines max-widths)
+  (dolist (line lines)
+    (setq max-widths
+          (dired-details-r-max-part-widths max-widths (cdr line))))
+  max-widths)
+
+(defun dired-details-r-update-max-widths (lines)
+  (setq dired-details-r-max-widths
+        (dired-details-r-calculate-max-widths lines
+                                              dired-details-r-max-widths)))
+
+(defun dired-details-r-update-filename-column-width ()
+  (setq dired-details-r-filename-column-width
+        (max
+         ;; minimum width
+         dired-details-r-min-filename-width
+         (min
+          ;; maximum width of current file names
+          (dired-details-r-filename-part dired-details-r-max-widths)
+          ;; allocatable width for filenames in window
+          (dired-details-r-max-filename-width
+           dired-details-r-max-widths
+           (dired-details-r-visible-parts-left)
+           (dired-details-r-visible-parts-right))))))
+
+(defun dired-details-r-set-all-appearance-changes ()
   (dired-details-r-set-filename-overflow-visibility nil)
+  (dired-details-r-update-overlay-method (point-min) (point-max))
+  (dired-details-r-set-appearance-changes (point-min) (point-max)
+                                          ;; Update widths
+                                          t))
+
+(defun dired-details-r-set-appearance-changes (beg end &optional update-widths)
+  "Set text properties and overlays on file information lines."
 
   (when (and (< beg end)
              (not (eq dired-details-r-visible-parts 'disabled))
              (listp dired-details-r-visible-parts))
 
-    (dired-details-r-update-overlay-method beg end)
+    (let (;; Cache parts (Avoid computing length of parts twice)
+          (lines (dired-details-r-get-file-lines beg end)))
 
-    (let ((max-widths dired-details-r-max-widths)
-          (visible-parts-left (dired-details-r-visible-parts-left))
-          (visible-parts-right (dired-details-r-visible-parts-right))
-          lines)
+      ;; Calculate max column width
+      (when update-widths
+        ;; @todo The widths are also updated when adding subdirectories.
+        ;;       The layout may break when use `dired-details-r-update-file'.
 
-      ;; Cache parts (Avoid computing length of parts twice)
-      (dired-details-r-do-filenames beg end
-        (push (cons
-               (point)
-               (dired-details-r-collect-parts))
-              lines))
-      (setq lines (nreverse lines))
+        ;; Calculate maximum width of each parts
+        (dired-details-r-update-max-widths lines)
 
-      ;; Calculate column width
-      (dolist (line lines)
-        (setq max-widths
-              (dired-details-r-max-part-widths max-widths (cdr line))))
-      (setq dired-details-r-max-widths max-widths)
+        ;; Update filename column display width
+        (dired-details-r-update-filename-column-width))
 
       ;; Set text properties
-      (with-silent-modifications
-        (save-excursion
-          (dolist (line lines)
-            (goto-char (car line))
-            (dired-details-r-set-text-properties-on-file-line
-             (cdr line)
-             max-widths
-             visible-parts-left
-             visible-parts-right)))))))
+      (dired-details-r-set-text-properties-for-each-file
+       lines
+       dired-details-r-max-widths
+       (dired-details-r-visible-parts-left)
+       (dired-details-r-visible-parts-right)
+       dired-details-r-filename-column-width))))
+
+(defun dired-details-r-update-appearance-changes (beg end)
+  (dired-details-r-remove-appearance-changes beg end)
+  (dired-details-r-set-appearance-changes beg end))
+
+(defun dired-details-r-update-file (file)
+  "Updates the appearance of the specified FILE only. Useful for
+fixing the misaligned appearance of thumbnails when shown/hidden
+in image-dired."
+  (when dired-details-r-mode
+    (save-excursion
+      (when (dired-goto-file (expand-file-name file))
+        (dired-details-r-update-appearance-changes
+         (line-beginning-position)
+         ;; Include last "\n"
+         (1+ (line-end-position)))))))
+
 
 (defun dired-details-r-remove-all-appearance-changes ()
   "Remove all invisible text properties and overlays for dired-details-r."
+  (dired-details-r-remove-appearance-changes (point-min) (point-max))
+  ;; Reset overlay method
+  (setq dired-details-r-overlay-method nil))
+
+(defun dired-details-r-remove-appearance-changes (beg end)
+  "Remove invisible text properties and overlays for dired-details-r."
   (let ((inhibit-read-only t))
-    (remove-text-properties (point-min) (point-max)
+    (remove-text-properties beg end
                             '(invisible 'dired-details-r-detail)))
-  (dired-details-r-remove-all-overlays))
+  (dired-details-r-remove-overlays beg end))
 
 (defun dired-details-r-update-invisibility-spec ()
   (if dired-details-r-mode
@@ -778,15 +847,16 @@ dired-details-l !?"
        (overlay-put ovl 'evaporate t)
        (overlay-put ovl 'before-string (propertize details-str 'cursor 1))))))
 
-(defun dired-details-r-remove-all-overlays ()
-  ;;(message "on dired-details-r-remove-all-overlays ovmethod=%s" dired-details-r-overlay-method)
+(defun dired-details-r-remove-overlays (beg end)
+  ;;(message "on dired-details-r-remove-overlays ovmethod=%s" dired-details-r-overlay-method)
+
   ;; Remove display text property at the last character of lines
   (when (memq dired-details-r-overlay-method '(textprop textprop-and-overlay))
     (let ((inhibit-read-only t))
       (save-excursion
         (save-restriction
           (widen)
-          (dired-details-r-do-filenames (point-min) (point-max)
+          (dired-details-r-do-filenames beg end
             (let ((bof (point)) ;;beginning of filename
                   (eol (line-end-position)))
               (remove-text-properties (1- bof) bof '(display)) ;;left
@@ -794,10 +864,8 @@ dired-details-l !?"
 
   ;; Remove overlays
   (when (memq dired-details-r-overlay-method '(overlay textprop-and-overlay))
-    (remove-overlays (point-min) (point-max) 'dired-details-r t))
+    (remove-overlays beg end 'dired-details-r t)))
 
-  ;; Reset overlay method
-  (setq dired-details-r-overlay-method nil))
 
 (defun dired-details-r-remove-all-overlays-on-revert ()
   ;; Should have already been removed by the effect of the evaporate property.
@@ -828,7 +896,7 @@ dired-details-l !?"
       (progn
         (dired-details-r-remove-all-appearance-changes)
         (let ((inhibit-read-only t))
-          (dired-details-r-set-appearance-changes (point-min) (point-max))))
+          (dired-details-r-set-all-appearance-changes)))
     (revert-buffer)))
 
 (defun dired-details-r-rotate-combination-variable ()
@@ -914,7 +982,7 @@ dired-details-l !?"
     ;; Reset column width and overlay method
     (dired-details-r-initialize-buffer-settings)
     ;; Insert text properties and overlays from beg to end
-    (dired-details-r-set-appearance-changes (point-min) (point-max))))
+    (dired-details-r-set-all-appearance-changes)))
 
 
 ;;;; Support for find-dired
