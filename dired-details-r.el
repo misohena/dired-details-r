@@ -133,9 +133,22 @@ Set to nil if too slow or unstable."
 
 When nil, just use the standard three dots.  When a non-empty string,
 use that string instead."
-  :group 'org-startup
+  :group 'dired-details-r
   :type '(choice (const :tag "Default" nil)
                  (string :tag "String" :value "...")))
+
+(defcustom dired-details-r-preferred-overlay-method nil
+  "The method by which detailed information is displayed.
+
+nil means switch automatically. Use overlays for small number of
+files and text properties for large number.
+
+The symbol textprop means use only text properties.
+
+The method is related to display speed and wdired behavior."
+  :group 'dired-details-r
+  :type '(choice (const :tag "Auto" nil)
+                 (const :tag "Text property only" textprop)))
 
 ;;;; Faces
 
@@ -778,20 +791,23 @@ in image-dired."
 (defconst dired-details-r-max-num-lines-to-use-overlay 1000)
 
 (defun dired-details-r-update-overlay-method (_beg end)
-  ;; Use the text property when there are more than a certain number of lines.
-  ;; Fast with text properties but problem with cursor movement.
-  ;; Use overlays when the number of lines is small (most of the day).
-  (pcase dired-details-r-overlay-method
-    ('nil
-     (if (>= (line-number-at-pos end) dired-details-r-max-num-lines-to-use-overlay)
-         (setq dired-details-r-overlay-method 'textprop)
-       (setq dired-details-r-overlay-method 'overlay)))
-    ('overlay
-     (when (>= (line-number-at-pos end) dired-details-r-max-num-lines-to-use-overlay)
-       (setq dired-details-r-overlay-method 'textprop-and-overlay)))
-    ;; ('textprop) Keep method
-    ;; ('textprop-and-overlay) Keep method
-    )
+  (if (eq dired-details-r-preferred-overlay-method 'textprop)
+      ;; Use text properties only.
+      (setq dired-details-r-overlay-method 'textprop)
+    ;; Use the text property when there are more than a certain number of lines.
+    ;; Fast with text properties but problem with cursor movement.
+    ;; Use overlays when the number of lines is small (most of the day).
+    (pcase dired-details-r-overlay-method
+      ('nil
+       (if (>= (line-number-at-pos end) dired-details-r-max-num-lines-to-use-overlay)
+           (setq dired-details-r-overlay-method 'textprop)
+         (setq dired-details-r-overlay-method 'overlay)))
+      ('overlay
+       (when (>= (line-number-at-pos end) dired-details-r-max-num-lines-to-use-overlay)
+         (setq dired-details-r-overlay-method 'textprop-and-overlay)))
+      ;; ('textprop) Keep method
+      ;; ('textprop-and-overlay) Keep method
+      ))
   ;;(message "dired-details-r-overlay-method=%s beg=%s end=%s" dired-details-r-overlay-method beg end)
   )
 
