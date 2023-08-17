@@ -1095,8 +1095,9 @@ correctly."
   (let ((eol (and dired-details-r-hl-line-last-eol-marker
                   (marker-position dired-details-r-hl-line-last-eol-marker))))
     (when eol
-      (with-silent-modifications
-        (remove-text-properties eol (1+ eol) '(font-lock-face nil)))
+      (when (< eol (point-max))
+        (with-silent-modifications
+          (remove-text-properties eol (1+ eol) '(font-lock-face nil))))
       (set-marker dired-details-r-hl-line-last-eol-marker nil))))
 
 
