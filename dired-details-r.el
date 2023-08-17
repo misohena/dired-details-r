@@ -242,7 +242,6 @@ entire buffer was updated.")
 
   (dired-details-r-update-invisibility-spec)
   (dired-details-r-update-isearch-settings)
-  (dired-details-r-hl-line-check)
 
   (cond
    ;; turn on
@@ -854,7 +853,12 @@ in image-dired."
      (let ((ovl (make-overlay eol (1+ eol) nil t)))
        (overlay-put ovl 'dired-details-r t)
        (overlay-put ovl 'evaporate t)
-       (overlay-put ovl 'before-string (propertize details-str 'cursor 1))))))
+       (overlay-put ovl 'before-string
+                    (propertize
+                     details-str
+                     'display details-str ;; See: https://misohena.jp/blog/2023-08-18-before-string-is-not-applied-to-another-overlay-face.html
+                     'cursor 1 ;;See: https://misohena.jp/blog/2022-01-01-emacs-replacing-line-breaks-using-display-properties-is-very-slow.html
+                     ))))))
 
 (defun dired-details-r-add-overlay-left (bof details-str)
   "Show DETAILS-STR on left of BOF (beginning of filename) !!
@@ -1028,84 +1032,6 @@ You can change the layout by pressing `('."
 
   (advice-add 'find-dired-sentinel :after
               'dired-details-r--after-find-dired-sentinel))
-
-;;;; Support for hl-line
-
-;; @todo Cannot support (global-)hl-line-sticky-flag = nil !
-;;       Since there is no 'window text property.
-
-;; @todo Improve global-hl-line-mode detection. So far it's only
-;;       detected when dired-details-r-mode is called.
-;;       See the usage of `dired-details-r-hl-line-check'.
-
-(defcustom dired-details-r-support-hl-line-mode t
-  "Support hl-line-mode (or global-hl-line-mode) as much as possible.
-
-Depending on the behavior of before-string overlay property of
-Emacs (I don\\='t know if it\\='s a feature or a bug), hl-line may not
-be displayed correctly.  Work around this by setting the text
-property to the current end of line.
-
-(global-)hl-line-sticky-flag is not supported. If you need this
-setting, consider setting
-dired-details-r-preferred-overlay-method to \\='textprop. wdired
-temporarily disables dired-details-r, but hl-line works
-correctly."
-  :group 'dired-details-r
-  :type 'boolean)
-
-(when dired-details-r-support-hl-line-mode
-  (add-hook 'hl-line-mode-hook #'dired-details-r-hl-line-enable))
-;;(remove-hook 'hl-line-mode-hook #'dired-details-r-hl-line-highlight)
-
-(defun dired-details-r-hl-line-should-be-enabled-p ()
-  (and dired-details-r-support-hl-line-mode
-       dired-details-r-mode
-       (or
-        (and (boundp 'hl-line-mode) hl-line-mode)
-        (and (boundp 'global-hl-line-mode) global-hl-line-mode))))
-
-(defun dired-details-r-hl-line-check ()
-  (if (dired-details-r-hl-line-should-be-enabled-p)
-      (dired-details-r-hl-line-enable)
-    (dired-details-r-hl-line-disable)))
-
-(defvar-local dired-details-r-hl-line-enabled nil)
-
-(defun dired-details-r-hl-line-enable ()
-  (add-hook 'post-command-hook #'dired-details-r-hl-line-update nil t)
-  (setq dired-details-r-hl-line-enabled t))
-
-(defun dired-details-r-hl-line-disable ()
-  (remove-hook 'post-command-hook #'dired-details-r-hl-line-update t)
-  (setq dired-details-r-hl-line-enabled nil))
-
-(defun dired-details-r-hl-line-update ()
-  (when dired-details-r-hl-line-enabled
-    (dired-details-r-hl-line-remove-textprop)
-    (if (dired-details-r-hl-line-should-be-enabled-p)
-        (dired-details-r-hl-line-put-textprop)
-      (dired-details-r-hl-line-disable))))
-
-(defvar-local dired-details-r-hl-line-last-eol-marker nil)
-
-(defun dired-details-r-hl-line-put-textprop ()
-  (let ((eol (line-end-position)))
-    (when (< eol (point-max))
-      (with-silent-modifications
-        (put-text-property eol (1+ eol) 'font-lock-face 'hl-line))
-      (unless dired-details-r-hl-line-last-eol-marker
-        (setq dired-details-r-hl-line-last-eol-marker (make-marker)))
-      (set-marker dired-details-r-hl-line-last-eol-marker eol))))
-
-(defun dired-details-r-hl-line-remove-textprop ()
-  (let ((eol (and dired-details-r-hl-line-last-eol-marker
-                  (marker-position dired-details-r-hl-line-last-eol-marker))))
-    (when eol
-      (when (< eol (point-max))
-        (with-silent-modifications
-          (remove-text-properties eol (1+ eol) '(font-lock-face nil))))
-      (set-marker dired-details-r-hl-line-last-eol-marker nil))))
 
 
 ;;;; Setup
