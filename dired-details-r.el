@@ -729,17 +729,24 @@ visible-parts-right is the list obtained by
   (dired-details-r-remove-appearance-changes beg end)
   (dired-details-r-set-appearance-changes beg end))
 
+(defun dired-details-r-update-current-line ()
+  "Updates the appearance of the current line only. Useful for
+fixing the misaligned appearance when shown/hidden thumbnail
+in image-dired."
+  (when dired-details-r-mode
+    (dired-details-r-update-appearance-changes
+     (line-beginning-position)
+     ;; Include last "\n"
+     (1+ (line-end-position)))))
+
 (defun dired-details-r-update-file (file)
   "Updates the appearance of the specified FILE only. Useful for
-fixing the misaligned appearance of thumbnails when shown/hidden
+fixing the misaligned appearance when shown/hidden thumbnail
 in image-dired."
   (when dired-details-r-mode
     (save-excursion
       (when (dired-goto-file (expand-file-name file))
-        (dired-details-r-update-appearance-changes
-         (line-beginning-position)
-         ;; Include last "\n"
-         (1+ (line-end-position)))))))
+        (dired-details-r-update-current-line)))))
 
 
 (defun dired-details-r-remove-all-appearance-changes ()
