@@ -856,7 +856,7 @@ in image-dired."
        (overlay-put ovl 'before-string
                     (propertize
                      details-str
-                     'display details-str ;; See: https://misohena.jp/blog/2023-08-18-before-string-is-not-applied-to-another-overlay-face.html
+                     'display (propertize details-str 'cursor 1) ;; See: https://misohena.jp/blog/2023-08-18-before-string-is-not-applied-to-another-overlay-face.html
                      'cursor 1 ;;See: https://misohena.jp/blog/2022-01-01-emacs-replacing-line-breaks-using-display-properties-is-very-slow.html
                      ))))))
 
