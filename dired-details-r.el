@@ -1080,7 +1080,7 @@ correctly."
         (dired-details-r-hl-line-put-textprop)
       (dired-details-r-hl-line-disable))))
 
-(defvar dired-details-r-hl-line-last-eol-marker nil)
+(defvar-local dired-details-r-hl-line-last-eol-marker nil)
 
 (defun dired-details-r-hl-line-put-textprop ()
   (let ((eol (line-end-position)))
