@@ -98,7 +98,7 @@ name (for compatibility).
   :group 'dired-details-r
   :type 'boolean)
 
-(defcustom dired-details-r-date-format
+(defcustom dired-details-r-date-format "%b %e"
   "A format string to use when determining whether a date is today.
 
 Used by the `dired-details-r-set-face-part' function to determine
@@ -111,7 +111,6 @@ May be related to `ls-lisp-format-time-list'.
 
 For example, if the date format output by ls is 2023-01-02 12:34,
 specify %Y-%m-%d."
-  "%b %e"
   :group 'dired-details-r-faces
   :type 'string)
 
