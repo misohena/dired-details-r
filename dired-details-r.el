@@ -266,7 +266,7 @@ entire buffer was updated.")
 
     ;; change appearance
     (let ((inhibit-read-only t))
-      (dired-details-r-set-all-appearance-changes))
+      (dired-details-r-apply-appearance-changes-whole-buffer))
 
     ;; truncate lines
     (when dired-details-r-truncate-lines
@@ -280,12 +280,12 @@ entire buffer was updated.")
     (remove-hook 'dired-after-readin-hook 'dired-details-r--after-readin-hook t)
 
     ;; change appearance
-    (dired-details-r-remove-all-appearance-changes))))
+    (dired-details-r-remove-appearance-changes-whole-buffer))))
 
 (defun dired-details-r--wdired-mode-hook ()
   ;; If the display of dired-details-r interferes with wdired, turn it off.
   (if (memq dired-details-r-overlay-method '(textprop textprop-and-overlay))
-      (dired-details-r-remove-all-appearance-changes)
+      (dired-details-r-remove-appearance-changes-whole-buffer)
     ;; Show truncated part of filenames
     (dired-details-r-set-filename-overflow-visibility t)))
 
@@ -720,14 +720,19 @@ visible-parts-right is the list obtained by
                (dired-details-r-visible-parts-right)))
            0))))
 
-(defun dired-details-r-set-all-appearance-changes ()
+(defun dired-details-r-apply-appearance-changes-whole-buffer ()
   (dired-details-r-set-filename-overflow-visibility nil)
-  (dired-details-r-update-overlay-method (point-min) nil) ;; nil means max-point
-  (dired-details-r-set-appearance-changes (point-min) nil ;; nil means max-point
-                                          ;; Update widths
-                                          t))
+  (dired-details-r-update-overlay-method (point-min)
+                                         ;; nil means max-point
+                                         nil)
+  (dired-details-r-apply-appearance-changes (point-min)
+                                            ;; nil means max-point
+                                            nil
+                                            ;; Update widths
+                                            t))
 
-(defun dired-details-r-set-appearance-changes (beg end &optional update-widths)
+(defun dired-details-r-apply-appearance-changes (beg end
+                                                     &optional update-widths)
   "Set text properties and overlays on file information lines."
 
   (when (and (< beg (or end (point-max)))
@@ -758,7 +763,7 @@ visible-parts-right is the list obtained by
 
 (defun dired-details-r-update-appearance-changes (beg end)
   (dired-details-r-remove-appearance-changes beg end)
-  (dired-details-r-set-appearance-changes beg end))
+  (dired-details-r-apply-appearance-changes beg end))
 
 (defun dired-details-r-update-current-line ()
   "Updates the appearance of the current line only. Useful for
@@ -781,7 +786,7 @@ in image-dired."
         (dired-details-r-update-current-line)))))
 
 
-(defun dired-details-r-remove-all-appearance-changes ()
+(defun dired-details-r-remove-appearance-changes-whole-buffer ()
   "Remove all invisible text properties and overlays for dired-details-r."
   (dired-details-r-remove-appearance-changes (point-min)
                                              ;; nil means point-max
@@ -1064,9 +1069,9 @@ dired-details-l !?"
       ;; Do not revert-buffer as it will re-run find.
       ;;@todo Always use this method? (never use revert-buffer?)
       (progn
-        (dired-details-r-remove-all-appearance-changes)
+        (dired-details-r-remove-appearance-changes-whole-buffer)
         (let ((inhibit-read-only t))
-          (dired-details-r-set-all-appearance-changes)))
+          (dired-details-r-apply-appearance-changes-whole-buffer)))
     (revert-buffer)))
 
 (defun dired-details-r-rotate-combination-variable ()
@@ -1136,7 +1141,7 @@ dired-details-l !?"
 ;; (defun dired-details-r--dired-insert-set-properties-hook (beg end)
 ;;   (when dired-details-r-mode
 ;;     ;; Insert text properties and overlays from beg to end
-;;     (dired-details-r-set-appearance-changes beg end)))
+;;     (dired-details-r-apply-appearance-changes beg end)))
 
 ;; (defun dired-details-r--dired-revert-hook (&optional _arg _noconfirm)
 ;;   (when dired-details-r-mode
@@ -1152,7 +1157,7 @@ dired-details-l !?"
     ;; Reset column width and overlay method
     (dired-details-r-initialize-buffer-settings)
     ;; Insert text properties and overlays from beg to end
-    (dired-details-r-set-all-appearance-changes)))
+    (dired-details-r-apply-appearance-changes-whole-buffer)))
 
 
 ;;;; Support for find-dired
