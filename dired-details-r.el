@@ -473,7 +473,7 @@ dired-details-r-regexp and filename part on current line."
     (_ 74)))
 
 (defun dired-details-r-details-total-width (max-widths part-names)
-  (if (null part-names)
+  (if (or (null part-names) (null max-widths))
       0
     (+
      (cl-loop for part-name in part-names
@@ -678,14 +678,16 @@ visible-parts-right is the list obtained by
         (max
          ;; minimum width
          dired-details-r-min-filename-width
-         (min
-          ;; maximum width of current file names
-          (dired-details-r-filename-part dired-details-r-max-widths)
-          ;; allocatable width for filenames in window
-          (dired-details-r-max-filename-width
-           dired-details-r-max-widths
-           (dired-details-r-visible-parts-left)
-           (dired-details-r-visible-parts-right))))))
+         (if dired-details-r-max-widths
+             (min
+              ;; maximum width of current file names
+              (dired-details-r-filename-part dired-details-r-max-widths)
+              ;; allocatable width for filenames in window
+              (dired-details-r-max-filename-width
+               dired-details-r-max-widths
+               (dired-details-r-visible-parts-left)
+               (dired-details-r-visible-parts-right)))
+           0))))
 
 (defun dired-details-r-set-all-appearance-changes ()
   (dired-details-r-set-filename-overflow-visibility nil)
