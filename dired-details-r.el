@@ -277,7 +277,7 @@ entire buffer was updated.")
     (add-hook 'dired-after-readin-hook 'dired-details-r--after-readin-hook 100 t) ;; Ensure called after all-the-icons-dired--after-readin-hook and image-dired-dired-after-readin-hook
 
     ;; change appearance
-    (let ((inhibit-read-only t))
+    (with-silent-modifications
       (dired-details-r-apply-appearance-changes-whole-buffer))
 
     ;; truncate lines
@@ -810,10 +810,10 @@ in image-dired."
 
 (defun dired-details-r-remove-appearance-changes (beg end)
   "Remove invisible text properties and overlays for dired-details-r."
-  (let ((inhibit-read-only t))
+  (with-silent-modifications
     (remove-text-properties beg (or end (point-max))
-                            '(invisible 'dired-details-r-detail)))
-  (dired-details-r-remove-overlays beg end))
+                            '(invisible 'dired-details-r-detail))
+    (dired-details-r-remove-overlays beg end)))
 
 (defun dired-details-r-update-invisibility-spec ()
   (if dired-details-r-mode
@@ -1201,30 +1201,30 @@ dired-details-l !?"
 (defun dired-details-r-remove-overlays (beg end)
   ;;(message "on dired-details-r-remove-overlays ovmethod=%s" dired-details-r-overlay-method)
 
+  ;; Called in with-silent-modification
+
   ;; Remove inserted text
   (when (eq dired-details-r-overlay-method 'text)
-    (let ((inhibit-read-only t))
-      (save-excursion
-        (save-restriction
-          (widen)
-          (goto-char beg)
-          (while (< (point) (or end (point-max)))
-            (when (dired-move-to-filename)
-              (dired-details-r-remove-left-ins-text (point))
-              (dired-details-r-remove-right-ins-text (point)))
-            (forward-line))))))
+    (save-excursion
+      (save-restriction
+        (widen)
+        (goto-char beg)
+        (while (< (point) (or end (point-max)))
+          (when (dired-move-to-filename)
+            (dired-details-r-remove-left-ins-text (point))
+            (dired-details-r-remove-right-ins-text (point)))
+          (forward-line)))))
 
   ;; Remove display text property at the last character of lines
   (when (memq dired-details-r-overlay-method '(textprop textprop-and-overlay))
-    (let ((inhibit-read-only t))
-      (save-excursion
-        (save-restriction
-          (widen)
-          (dired-details-r-do-filenames beg end
-            (let ((bof (point)) ;;beginning of filename
-                  (eol (line-end-position)))
-              (remove-text-properties (1- bof) bof '(display)) ;;left
-              (remove-text-properties (1- eol) eol '(display)))))))) ;;right
+    (save-excursion
+      (save-restriction
+        (widen)
+        (dired-details-r-do-filenames beg end
+          (let ((bof (point)) ;;beginning of filename
+                (eol (line-end-position)))
+            (remove-text-properties (1- bof) bof '(display)) ;;left
+            (remove-text-properties (1- eol) eol '(display))))))) ;;right
 
   ;; Remove overlays
   (when (memq dired-details-r-overlay-method '(overlay textprop-and-overlay))
@@ -1233,7 +1233,8 @@ dired-details-l !?"
 
 (defun dired-details-r-remove-all-overlays-on-revert ()
   ;; Should have already been removed by the effect of the evaporate property.
-  ;;  (remove-overlays (point-min) (point-max) 'dired-details-r t)
+  ;;  (with-silent-modifications
+  ;;    (remove-overlays (point-min) (point-max) 'dired-details-r t))
 
   ;; Should be automatically removed when using text properties.
   )
@@ -1257,10 +1258,9 @@ dired-details-l !?"
       ;;@todo Check revert-buffer-function?
       ;; Do not revert-buffer as it will re-run find.
       ;;@todo Always use this method? (never use revert-buffer?)
-      (progn
+      (with-silent-modifications
         (dired-details-r-remove-appearance-changes-whole-buffer)
-        (let ((inhibit-read-only t))
-          (dired-details-r-apply-appearance-changes-whole-buffer)))
+        (dired-details-r-apply-appearance-changes-whole-buffer))
     (revert-buffer)))
 
 (defun dired-details-r-rotate-combination-variable ()
