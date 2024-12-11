@@ -98,6 +98,15 @@ name (for compatibility).
   :group 'dired-details-r
   :type 'boolean)
 
+(defcustom dired-details-r-highlight-today t
+  "A non-nil value means to fontify today's date with the
+`dired-details-r-today' face.
+
+The `dired-details-r-date-format' variable must be set correctly in
+order for dates to be recognized."
+  :group 'dired-details-r
+  :type 'boolean)
+
 (defcustom dired-details-r-date-format "%b %e"
   "A format string to use when determining whether a date is today.
 
@@ -297,8 +306,10 @@ entire buffer was updated.")
   (cond
    ;; highlight today
    ((and (eq part-name 'time)
-         (string-match
-          (format-time-string dired-details-r-date-format (current-time)) str))
+         dired-details-r-highlight-today
+         (string-search
+          (format-time-string dired-details-r-date-format (current-time))
+          str))
     (propertize str
                 'face 'dired-details-r-today
                 'font-lock-face 'dired-details-r-today))
