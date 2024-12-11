@@ -904,6 +904,181 @@ in image-dired."
     ;; delta buffer size
     (- (length new-text) (- end begin))))
 
+;;;;; Fix various issues with text insertion
+
+;;;;;; Can't mark with ~ and #
+
+(defun dired-details-r--move-to-end-of-filename ()
+  (let ((bol (pos-bol))
+        (eol (pos-eol)))
+    (when (< bol eol)
+      (if (get-text-property (1- eol) 'dired-filename)
+          (goto-char eol)
+        (let ((pos (previous-single-property-change eol 'dired-filename
+                                                    nil bol)))
+          (if (< bol pos)
+              (goto-char pos)
+            (end-of-line)))))))
+
+(defun dired-details-r--flag-auto-save-files:around (old-fun &rest args)
+  (if (eq dired-details-r-overlay-method 'text)
+      (apply #'dired-details-r--flag-auto-save-files args)
+    (apply old-fun args)))
+
+(defun dired-details-r--flag-auto-save-files (&optional unflag-p)
+  "An alternative to the `dired-flag-auto-save-files' command.
+Replaces the call to `end-of-line' with a jump to the end of the file."
+  (let ((dired-marker-char (if unflag-p ?\s dired-del-marker)))
+    (dired-mark-if
+     (and (save-excursion
+            ;; Changes start here
+            (dired-details-r--move-to-end-of-filename)
+            ;; Changes end here
+            (or (eq (preceding-char) ?#)
+                (if (eq (preceding-char) ?*)
+                    (progn (forward-char -1) (eq (preceding-char) ?#)))))
+          (not (looking-at-p dired-re-dir))
+          (let ((fn (dired-get-filename t t)))
+            (if fn (auto-save-file-name-p (file-name-nondirectory fn)))))
+     "auto save file")))
+
+(defun dired-details-r--flag-backup-files:around (old-fun &rest args)
+  (if (eq dired-details-r-overlay-method 'text)
+      (apply #'dired-details-r--flag-backup-files args)
+    (apply old-fun args)))
+
+(defun dired-details-r--flag-backup-files (&optional unflag-p)
+  "An alternative to the `dired-flag-backup-files' command.
+Replaces the call to `end-of-line' with a jump to the end of the file."
+  (let ((dired-marker-char (if unflag-p ?\s dired-del-marker)))
+    (dired-mark-if
+     (and (save-excursion
+            ;; Changes start here
+            (dired-details-r--move-to-end-of-filename)
+            ;; Changes end here
+            (if (eq (preceding-char) ?*) (forward-char -1))
+            (eq (preceding-char) ?~))
+          (not (looking-at-p dired-re-dir))
+          (let ((fn (dired-get-filename t t))) (if fn (backup-file-name-p fn))))
+     "backup file")))
+
+;;;;;; Font lock problems
+
+;; - Suppress fontify on the right side of file names
+;; - Fix regexp `$' in dired-font-lock-keywords for dired-ignored-face
+
+(defun dired-details-r-match-file-name-regexp--text-ins (limit regexp)
+  ;; Note: This function assumes that the `dired-filename' text
+  ;; property is set correctly. You should not use
+  ;; `dired-details-r-overlay-method' = 'text in environments where
+  ;; the `dired-filename' text property is not set correctly.
+
+  ;; Skip non-filename part
+  (unless (get-text-property (point) 'dired-filename)
+    (goto-char (next-single-property-change (point) 'dired-filename nil limit)))
+  (when (< (point) limit)
+    (let ((begin (if (get-text-property (1- (point)) 'dired-filename)
+                     (previous-single-property-change (point) 'dired-filename
+                                                      nil (pos-bol))
+                   (point)))
+          (end (next-single-property-change (point) 'dired-filename nil limit)))
+      (unless (get-text-property end 'dired-filename) ;; END points end of fn
+        (when (or (null regexp)
+                  ;; Apply REGEXP only to the current filename
+                  ;; ($ means the end of the filename)
+                  (progn
+                    (goto-char begin)
+                    (save-restriction
+                      (narrow-to-region begin end)
+                      (re-search-forward regexp nil t))))
+          (set-match-data (list begin end))
+          (goto-char end)
+          t)))))
+
+(defun dired-details-r-match-file-name-regexp--default (limit regexp)
+  ;; Reproduce the following format:
+  ;;           (".+" (dired-move-to-filename) nil SUBEXP-HIGHLIGHTERS)
+  ;;   (REGEXP (".+" (dired-move-to-filename) nil SUBEXP-HIGHLIGHTERS))
+  (when (or (null regexp)
+            (re-search-forward regexp limit t))
+    (when (dired-move-to-filename)
+      (let ((begin (point)))
+        (end-of-line)
+        (set-match-data (list begin (point)))
+        t))))
+
+(defun dired-details-r-match-file-name-regexp (limit regexp)
+  (if (eq dired-details-r-overlay-method 'text)
+      (dired-details-r-match-file-name-regexp--text-ins limit regexp)
+    (dired-details-r-match-file-name-regexp--default limit regexp)))
+
+(defun dired-details-r-match-file-name (limit)
+  (dired-details-r-match-file-name-regexp limit nil))
+
+(defun dired-details-r-match-ignored-files (limit)
+  (dired-details-r-match-file-name-regexp
+   limit
+   (concat
+    "\\(" (regexp-opt completion-ignored-extensions)
+    "\\|#\\|\\.#.+\\)[*=|]?$")))
+
+(defconst dired-details-r-font-lock-keywords-to-add
+  (list
+   ;; Marked files.
+   (list (concat "^[" (char-to-string dired-marker-char) "]")
+         '(dired-details-r-match-file-name nil nil (0 dired-marked-face)))
+   ;; Flagged files.
+   (list (concat "^[" (char-to-string dired-del-marker) "]")
+         '(dired-details-r-match-file-name nil nil (0 dired-flagged-face)))
+   ;; Subdirectories.
+   (list dired-re-dir
+         '(dired-details-r-match-file-name nil nil (0 dired-directory-face)))
+   ;; Files suffixed with `completion-ignored-extensions'.
+   '(dired-details-r-match-ignored-files . dired-ignored-face)
+   ;; Sockets, pipes, block devices, char devices.
+   (list dired-re-special
+         '(dired-details-r-match-file-name nil nil (0 'dired-special)))))
+
+(defconst dired-details-r-font-lock-keywords-to-delete
+  (list
+   ;; Marked files.
+   (concat "^[" (char-to-string dired-marker-char) "]")
+   ;; Flagged files.
+   (concat "^[" (char-to-string dired-del-marker) "]")
+   ;; Subdirectories.
+   dired-re-dir
+   ;; Files suffixed with `completion-ignored-extensions'.
+   'eval
+   'dired-details-r-match-ignored-files
+   ;; Sockets, pipes, block devices, char devices.
+   dired-re-special))
+
+(defun dired-details-r-replace-font-lock-keywords ()
+  (font-lock-remove-keywords
+   nil
+   (seq-filter (lambda (keyword)
+                 (member (car keyword)
+                         dired-details-r-font-lock-keywords-to-delete))
+               dired-font-lock-keywords))
+  (font-lock-add-keywords
+   nil
+   dired-details-r-font-lock-keywords-to-add))
+
+;;;;;; Setup and Teardown
+
+(defun dired-details-r-text-ins-global-setup ()
+  (advice-add #'dired-flag-auto-save-files
+              :around #'dired-details-r--flag-auto-save-files:around)
+  (advice-add #'dired-flag-backup-files
+              :around #'dired-details-r--flag-backup-files:around)
+  (add-hook 'dired-mode-hook #'dired-details-r-replace-font-lock-keywords))
+
+(defun dired-details-r-text-ins-global-teardown ()
+  (advice-remove #'dired-flag-auto-save-files
+                 #'dired-details-r--flag-auto-save-files:around)
+  (advice-remove #'dired-flag-backup-files
+                 #'dired-details-r--flag-backup-files:around)
+  (remove-hook 'dired-mode-hook #'dired-details-r-replace-font-lock-keywords))
 
 
 ;;;; Overlay Management
@@ -1188,7 +1363,9 @@ You can change the layout by pressing `('."
 (defun dired-details-r-setup ()
   (interactive)
   ;; Ensure called after all-the-icons-dired-mode
-  (add-hook 'dired-mode-hook 'dired-details-r--dired-mode-hook 100))
+  (add-hook 'dired-mode-hook 'dired-details-r--dired-mode-hook 100)
+  ;; For text insertion method
+  (dired-details-r-text-ins-global-setup))
 
 (defun dired-details-r-uninstall ()
   (interactive)
@@ -1198,7 +1375,9 @@ You can change the layout by pressing `('."
   (dolist (buffer (buffer-list))
     (with-current-buffer buffer
       (when dired-details-r-mode
-        (dired-details-r-mode -1)))))
+        (dired-details-r-mode -1))))
+  ;; For text insertion method
+  (dired-details-r-text-ins-global-teardown))
 
 (defun dired-details-r--dired-mode-hook ()
   (dired-details-r-mode))
