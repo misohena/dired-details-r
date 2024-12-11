@@ -145,7 +145,7 @@ use that string instead."
   :type '(choice (const :tag "Default" nil)
                  (string :tag "String" :value "...")))
 
-(defcustom dired-details-r-preferred-overlay-method 'text
+(defcustom dired-details-r-preferred-overlay-method nil
   "The method by which detailed information is displayed.
 
 nil means switch automatically. Use overlays for small number of
@@ -155,6 +155,9 @@ The symbol `textprop' means use only text properties.
 
 The symbol `text' means to insert detailed information text directly
 into the buffer, without using an overlay or text properties.
+Inserting text before or after file names may cause some existing Emacs
+Lisp code to malfunction. I have already added workaround code for some
+issues I noticed.
 
 The method is related to display speed and wdired behavior."
   :group 'dired-details-r
