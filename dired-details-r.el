@@ -32,6 +32,7 @@
 (require 'dired)
 (require 'cl-lib)
 
+(defconst dired-details-r-verbose nil)
 
 ;;;; Customizable variables
 
@@ -749,6 +750,10 @@ visible-parts-right is the list obtained by
                                                      &optional update-widths)
   "Set text properties and overlays on file information lines."
 
+  (when dired-details-r-verbose
+    (message "Enter dired-details-r-apply-appearance-changes beg=%s end=%s"
+             beg end))
+
   (when (and (< beg (or end (point-max)))
              (not (eq dired-details-r-visible-parts 'disabled))
              (listp dired-details-r-visible-parts))
@@ -1007,6 +1012,9 @@ Replaces the call to `end-of-line' with a jump to the end of the file."
                       (re-search-forward regexp nil t))))
           (set-match-data (list begin end))
           (goto-char end)
+          ;; Skip text after filename in the same line
+          ;; (The number of calls to this function is suppressed)
+          (end-of-line)
           t)))))
 
 (defun dired-details-r-match-file-name-regexp--default (limit regexp)
@@ -1022,6 +1030,10 @@ Replaces the call to `end-of-line' with a jump to the end of the file."
         t))))
 
 (defun dired-details-r-match-file-name-regexp (limit regexp)
+  (when dired-details-r-verbose
+    (message "match-file-name-regexp point=%s limit=%s regexp=%s"
+             (point) limit (and regexp (truncate-string-to-width regexp 10))))
+
   (if (eq dired-details-r-overlay-method 'text)
       (dired-details-r-match-file-name-regexp--text-ins limit regexp)
     (dired-details-r-match-file-name-regexp--default limit regexp)))
@@ -1029,12 +1041,25 @@ Replaces the call to `end-of-line' with a jump to the end of the file."
 (defun dired-details-r-match-file-name (limit)
   (dired-details-r-match-file-name-regexp limit nil))
 
+(defvar dired-details-r-match-ignore-files-regexps nil)
+
+(defun dired-details-r-match-ignore-files-regexps ()
+  (if (and dired-details-r-match-ignore-files-regexps
+           (eq (car dired-details-r-match-ignore-files-regexps)
+               completion-ignored-extensions))
+      dired-details-r-match-ignore-files-regexps
+    (let ((common (concat
+                   "\\(" (regexp-opt completion-ignored-extensions)
+                   "\\|#\\|\\.#.+\\)[*=|]?")))
+      (setq dired-details-r-match-ignore-files-regexps
+            (cons completion-ignored-extensions
+                  (cons (concat common "\\(?: \\|$\\)")
+                        (concat common "$")))))))
+
 (defun dired-details-r-match-ignored-files (limit)
   (dired-details-r-match-file-name-regexp
    limit
-   (concat
-    "\\(" (regexp-opt completion-ignored-extensions)
-    "\\|#\\|\\.#.+\\)[*=|]?$")))
+   (cddr (dired-details-r-match-ignore-files-regexps))))
 
 (defconst dired-details-r-font-lock-keywords-to-add
   (list
@@ -1048,7 +1073,10 @@ Replaces the call to `end-of-line' with a jump to the end of the file."
    (list dired-re-dir
          '(dired-details-r-match-file-name nil nil (0 dired-directory-face)))
    ;; Files suffixed with `completion-ignored-extensions'.
-   '(dired-details-r-match-ignored-files . dired-ignored-face)
+   '(eval
+     . (list
+        (cadr (dired-details-r-match-ignore-files-regexps))
+        '(dired-details-r-match-ignored-files (beginning-of-line) nil (0 dired-ignored-face))))
    ;; Sockets, pipes, block devices, char devices.
    (list dired-re-special
          '(dired-details-r-match-file-name nil nil (0 'dired-special)))))
@@ -1074,6 +1102,12 @@ Replaces the call to `end-of-line' with a jump to the end of the file."
                  (member (car keyword)
                          dired-details-r-font-lock-keywords-to-delete))
                dired-font-lock-keywords))
+  (font-lock-remove-keywords
+   nil
+   (seq-filter (lambda (keyword)
+                 (member (car keyword)
+                         dired-details-r-font-lock-keywords-to-delete))
+               dired-details-r-font-lock-keywords-to-add))
   (font-lock-add-keywords
    nil
    dired-details-r-font-lock-keywords-to-add))
@@ -1340,13 +1374,17 @@ dired-details-l !?"
 ;;     (dired-details-r-initialize-buffer-settings)))
 
 (defun dired-details-r--after-readin-hook ()
+  (when dired-details-r-verbose
+    (message "Enter dired-details-r--after-readin-hook"))
   (when dired-details-r-mode
     ;; Remove all overlays (unnecessary? evaporate property is used)
     (dired-details-r-remove-all-overlays-on-revert)
     ;; Reset column width and overlay method
     (dired-details-r-initialize-buffer-settings)
     ;; Insert text properties and overlays from beg to end
-    (dired-details-r-apply-appearance-changes-whole-buffer)))
+    (dired-details-r-apply-appearance-changes-whole-buffer))
+  (when dired-details-r-verbose
+    (message "Leave dired-details-r--after-readin-hook")))
 
 
 ;;;; Support for find-dired
