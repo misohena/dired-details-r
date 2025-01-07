@@ -311,6 +311,7 @@ entire buffer was updated.")
    ;; highlight today
    ((and (eq part-name 'time)
          dired-details-r-highlight-today
+         (fboundp 'string-search) ;; Emacs 28 or later
          (string-search
           (format-time-string dired-details-r-date-format (current-time))
           str))
