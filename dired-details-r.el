@@ -366,31 +366,40 @@ entire buffer was updated.")
 
 ;; Measure Text Width
 
+(defun dired-details-r-text-pixel-width-internal (from to)
+  ;; Note: Narrow to region to avoid problems with `window-text-pixel-size'.
+  ;; `window-text-pixel-size' may return a negative width if there
+  ;; are full-width characters in the buffer.
+  ;;
+  ;; Note: To avoid changing the scroll position, narrow after
+  ;; the window buffer changes.
+  (save-excursion
+    (save-restriction
+      (narrow-to-region from to)
+      (car (window-text-pixel-size nil from to 100000)))))
+
 (defun dired-details-r-text-pixel-width (from to)
   ;; See `shr-pixel-column' technic.
-  (let ((bol (line-beginning-position)))
-    (if (eq (window-buffer) (current-buffer))
-        (- (car (window-text-pixel-size nil bol to 100000))
-           (car (window-text-pixel-size nil bol from 100000)))
-      (let ((old-wnb (window-next-buffers))
-            (old-wpb (window-prev-buffers)))
-        (prog1
-            (save-window-excursion
-              (set-window-dedicated-p nil nil)
-              (set-window-buffer nil (current-buffer))
-              (- (car (window-text-pixel-size nil bol to 100000))
-                 (car (window-text-pixel-size nil bol from 100000))))
-          ;; `set-window-buffer' modifies window-prev-buffers!(*)
-          ;; Then the first `switch-to-buffer' will move the point to the
-          ;; location investigated here.
-          ;; So prevent it.
-          ;; * (`set-window-buffer' -> `record-window-buffer'
-          ;;  -> `push-window-buffer-onto-prev' -> `set-window-prev-buffers')
-          (set-window-next-buffers nil old-wnb)
-          (set-window-prev-buffers nil old-wpb)
-          ;; @todo (run-hooks 'buffer-list-update-hook)?
-          ;;       See `record-window-buffer'.
-          )))))
+  (if (eq (window-buffer) (current-buffer))
+      (dired-details-r-text-pixel-width-internal from to)
+    (let ((old-wnb (window-next-buffers))
+          (old-wpb (window-prev-buffers)))
+      (prog1
+          (save-window-excursion
+            (set-window-dedicated-p nil nil)
+            (set-window-buffer nil (current-buffer))
+            (dired-details-r-text-pixel-width-internal from to))
+        ;; `set-window-buffer' modifies window-prev-buffers!(*)
+        ;; Then the first `switch-to-buffer' will move the point to the
+        ;; location investigated here.
+        ;; So prevent it.
+        ;; * (`set-window-buffer' -> `record-window-buffer'
+        ;;  -> `push-window-buffer-onto-prev' -> `set-window-prev-buffers')
+        (set-window-next-buffers nil old-wnb)
+        (set-window-prev-buffers nil old-wpb)
+        ;; @todo (run-hooks 'buffer-list-update-hook)?
+        ;;       See `record-window-buffer'.
+        ))))
 
 (defun dired-details-r-width-before-filename (beginning-of-filename)
   "Return width of objects preceding file name."
