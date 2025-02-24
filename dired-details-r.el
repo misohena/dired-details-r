@@ -471,7 +471,7 @@ dired-details-r-regexp and filename part on current line."
             finally return 0)))
 
 (defun dired-details-r-visible-parts-right ()
-  (if-let ((r (memq 'filename dired-details-r-visible-parts)))
+  (if-let* ((r (memq 'filename dired-details-r-visible-parts)))
       (cdr r)
     dired-details-r-visible-parts))
 
