@@ -202,7 +202,7 @@ string specified in `dired-details-r-date-format' is included."
    "\\( *\\([0-9]+\\) +\\)" ;3,4:link count
    "\\(\\([^ ]+\\) +\\)" ;5,6:user
    "\\(\\([^ ]+\\) +\\)" ;7,8:group (7 including space before size)
-   "\\(\\([0-9]+\\) \\)" ;9,10:size
+   "\\(\\([0-9]+[.,0-9]*[BkKMGTPEZYRQ]?\\) \\)" ;9,10:size
    "\\(\\(.+\\)\\)")) ;11,12:time
 
 (defconst dired-details-r-part-info-list
