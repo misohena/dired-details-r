@@ -198,7 +198,7 @@ string specified in `dired-details-r-date-format' is included."
 
 (defconst dired-details-r-regexp
   (concat
-   "\\(\\([^ ][-r][-w][^ ][-r][-w][^ ][-r][-w][^ ]\\) ?\\)" ;1,2:permissions
+   "\\(\\([^ ][-r][-w][^ ][-r][-w][^ ][-r][-w][^ ][?.+@]?\\) ?\\)" ;1,2:permissions
    "\\( *\\([0-9]+\\) +\\)" ;3,4:link count
    "\\(\\([^ ]+\\) +\\)" ;5,6:user
    "\\(\\([^ ]+\\) +\\)" ;7,8:group (7 including space before size)
