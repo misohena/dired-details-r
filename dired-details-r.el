@@ -427,6 +427,10 @@ entire buffer was updated.")
              (prev-w (dired-details-r-text-pixel-width
                       (1- beginning-of-filename) beginning-of-filename))
              (prev-chars (max 0 (1- (floor (+ 0.5 (/ prev-w char-w)))))))
+        (when dired-details-r-verbose
+          (message "bofn=%s char-w=%s prev-w=%s prev-chars=%s"
+                   beginning-of-filename
+                   char-w prev-w prev-chars))
         prev-chars)
     0))
 
@@ -1105,22 +1109,27 @@ Replaces the call to `end-of-line' with a jump to the end of the file."
    ;; Sockets, pipes, block devices, char devices.
    dired-re-special))
 
-(defun dired-details-r-replace-font-lock-keywords ()
-  (font-lock-remove-keywords
-   nil
-   (seq-filter (lambda (keyword)
-                 (member (car keyword)
-                         dired-details-r-font-lock-keywords-to-delete))
+(defconst dired-details-r-font-lock-keywords
+  (append
+   dired-details-r-font-lock-keywords-to-add
+   (seq-remove (lambda (keyword)
+                 (member
+                  (car keyword)
+                  dired-details-r-font-lock-keywords-to-delete))
                dired-font-lock-keywords))
-  (font-lock-remove-keywords
-   nil
-   (seq-filter (lambda (keyword)
-                 (member (car keyword)
-                         dired-details-r-font-lock-keywords-to-delete))
-               dired-details-r-font-lock-keywords-to-add))
-  (font-lock-add-keywords
-   nil
-   dired-details-r-font-lock-keywords-to-add))
+  "An alternative to `dired-font-lock-keywords'.
+
+  `dired-font-lock-keywords' contains a regular expression that assumes
+that the end of a line is the end of the filename, which causes
+problems, so this fixes it.")
+
+(defun dired-details-r-replace-font-lock-keywords ()
+  "Replace `dired-font-lock-keywords' in `font-lock-defaults' with
+`dired-details-r-font-lock-keywords'."
+  (when (eq (car font-lock-defaults) 'dired-font-lock-keywords)
+    (setq font-lock-defaults
+          (cons 'dired-details-r-font-lock-keywords
+                (cdr font-lock-defaults)))))
 
 ;;;;;; Setup and Teardown
 
