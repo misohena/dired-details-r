@@ -198,21 +198,21 @@ string specified in `dired-details-r-date-format' is included."
 
 (defconst dired-details-r-regexp
   (concat
-   "\\(\\([^ ][-r][-w][^ ][-r][-w][^ ][-r][-w][^ ][?.+@]?\\) ?\\)" ;1,2:permissions
-   "\\( *\\([0-9]+\\) +\\)" ;3,4:link count
-   "\\(\\([^ ]+\\) +\\)" ;5,6:user
-   "\\(\\([^ ]+\\) +\\)" ;7,8:group (7 including space before size)
-   "\\(\\([0-9]+[.,0-9]*[BkKMGTPEZYRQ]?\\) \\)" ;9,10:size
-   "\\(\\(.+\\)\\)")) ;11,12:time
+   "\\(?:\\([^ ][-r][-w][^ ][-r][-w][^ ][-r][-w][^ ][?.+@]?\\) ?\\)" ;; 1:permissions
+   "\\(?: *\\([0-9]+\\) +\\)" ;; 2:link count
+   "\\(?:\\([^ ]+\\) +\\)" ;; 3:user
+   "\\(?:\\([^ ]+\\) +\\)" ;; 4:group (7 including space before size)
+   "\\(?:\\([0-9]+[.,0-9]*[BkKMGTPEZYRQ]?\\) \\)" ;; 5:size
+   "\\(?:\\(.+\\)\\)")) ;; 6:time
 
 (defconst dired-details-r-part-info-list
   ;; (name index subexp align-right)
-  '((perms 0  2 nil)
-    (links 1  4 t)
-    (user  2  6 nil)
-    (group 3  8 nil)
-    (size  4 10 t)
-    (time  5 12 nil))
+  '((perms 0 1 nil)
+    (links 1 2 t)
+    (user  2 3 nil)
+    (group 3 4 nil)
+    (size  4 5 t)
+    (time  5 6 nil))
   "Definitions of detail parts.")
 (defun dired-details-r-part-info-name (part-info) (nth 0 part-info))
 (defun dired-details-r-part-info-index (part-info) (nth 1 part-info))
