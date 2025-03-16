@@ -201,7 +201,7 @@ string specified in `dired-details-r-date-format' is included."
    "\\(?:\\([^ ][-r][-w][^ ][-r][-w][^ ][-r][-w][^ ][?.+@]?\\) ?\\)" ;; 1:permissions
    "\\(?: *\\([0-9]+\\) +\\)" ;; 2:link count
    "\\(?:\\([^ ]+\\) +\\)" ;; 3:user
-   "\\(?:\\([^ ]+\\) +\\)" ;; 4:group (7 including space before size)
+   "\\(?:\\([^ ]+\\) +\\)" ;; 4:group (and skip spaces before size)
    "\\(?:\\([0-9]+[.,0-9]*[BkKMGTPEZYRQ]?\\) \\)" ;; 5:size
    "\\(?:\\(.+\\)\\)")) ;; 6:time
 
